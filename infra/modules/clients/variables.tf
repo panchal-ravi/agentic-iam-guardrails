@@ -1,0 +1,19 @@
+variable "instance_type" {}
+variable "deployment_id" {}
+variable "consul_sg_id" {}
+variable "bastion_sg_id" {}
+variable "nomad_sg_id" {}
+variable "private_subnets" {}
+variable "aws_keypair_name" {}
+variable "iam_instance_profile" {}
+variable "consul_ca_crt" {}
+variable "connect_ca_crt" {}
+variable "owner" {}
+variable "nomad_client_count" {}
+variable "elb" {}
+variable "vpc_id" {}
+variable "vault_ca_crt" {}
+variable "nomad_ca_cert_pem" {}
+variable "nomad_ca_key_pem" {
+  sensitive = true
+}

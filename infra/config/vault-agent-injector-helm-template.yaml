@@ -1,0 +1,5 @@
+global:
+  enabled: false
+injector:
+  enabled: true
+  externalVaultAddr: ${vault_addr}

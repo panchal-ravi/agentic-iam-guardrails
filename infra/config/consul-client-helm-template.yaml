@@ -1,0 +1,105 @@
+global:
+  enabled: false
+  name: dc1-default
+  logLevel: info
+  metrics:
+    enabled: true
+    enableGatewayMetrics: true
+  image: "hashicorp/consul-enterprise:${consul_version}"
+  adminPartitions:
+    enabled: true
+    name: default
+  # peering:
+  #   enabled: true
+  datacenter: dc1
+  tls:
+    enabled: true
+    enableAutoEncrypt: true
+    caCert:
+      secretName: consul-ca-cert
+      secretKey: tls.crt
+  acls:
+    manageSystemACLs: true
+    bootstrapToken:
+      secretName: consul-partitions-acl-token
+      secretKey: token
+  enableConsulNamespaces: true
+  enterpriseLicense:
+    secretName: consul-ent-license
+    secretKey: key
+externalServers:
+  enabled: true
+  hosts: ["${consul_server_ip}"]
+  tlsServerName: server.dc1.consul
+  k8sAuthMethodHost: ${cluster_endpoint}
+  grpcPort: 8503
+# client:
+#   enabled: true
+#   join: [{partition_service_fqdn}]
+#   securityContext:
+#     runAsNonRoot: false
+#     runAsUser: 0
+# dns:
+#   enabled: true
+#   enableRedirection: true
+# ui:
+#   service:
+#     type: LoadBalancer
+connectInject:
+  enabled: true
+  # envoyExtraArgs: "--log-level info"
+  consulNamespaces:
+    mirroringK8S: true
+  sidecarProxy:
+    lifecycle:
+      defaultEnabled: true
+      defaultStartupGracePeriodSeconds: 30
+  apiGateway:
+    manageExternalCRDs: true
+    managedGatewayClass:
+      deployment:
+        defaultInstances: 1
+        minInstances: 1
+        maxInstances: 2
+      # resources:
+      #   requests:
+      #     memory: '2Gi'
+      #     cpu: '1000m'
+      #   limits:
+      #     memory: '2Gi'
+      #     cpu: '1000m'
+      # copyAnnotations:
+      #   service:
+      #     annotations: |
+      #       - service.beta.kubernetes.io/azure-load-balancer-internal
+# controller:
+#   enabled: true
+# apiGateway:
+#   enabled: true
+#   image: "hashicorp/consul-api-gateway:0.5.1"
+#   managedGatewayClass:
+#     serviceType: LoadBalancer
+# ingressGateways:
+#   enabled: true
+#   defaults:
+#     replicas: 1
+#     service:
+#       type: LoadBalancer
+#       ports:
+#         - port: 80
+# meshGateway:
+#   enabled: true
+#   replicas: 1
+  # resources:
+  #   requests:
+  #     memory: '2Gi'
+  #     cpu: '1000m'
+  #   limits:
+  #     memory: '2Gi'
+  #     cpu: '1000m'
+# terminatingGateways:
+#   enabled: true
+#   defaults:
+#     replicas: 1
+  # gateways:
+  #   - name: https-terminating-gateway
