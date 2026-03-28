@@ -40,15 +40,16 @@ module "servers" {
 module "consul_client_k8s" {
   source = "./modules/consul-client-k8s"
 
-  cluster_endpoint  = module.common.eks_cluster_endpoint
-  consul_ca_crt     = module.servers.consul_ca_crt
-  consul_license    = file("${path.root}/config/consul_license.hclic")
-  consul_server_ip  = module.servers.server_ip
-  consul_token      = module.servers.consul_token
-  consul_version    = var.consul_version
-  eks_oidc_provider = module.common.eks_oidc_provider
-  vault_addr        = "https://${module.servers.server_ip}:8200"
-
+  cluster_endpoint   = module.common.eks_cluster_endpoint
+  consul_ca_crt      = module.servers.consul_ca_crt
+  consul_license     = file("${path.root}/config/consul_license.hclic")
+  consul_server_ip   = module.servers.server_ip
+  consul_token       = module.servers.consul_token
+  consul_version     = var.consul_version
+  eks_oidc_provider  = module.common.eks_oidc_provider
+  vault_private_addr = "https://${module.servers.server_ip}:8200"
+  vault_public_addr  = "${module.common.elb.http_addr}:8200"
+  may_act_client_id  = var.may_act_client_id
   depends_on = [
     module.common,
     module.servers,

@@ -57,6 +57,7 @@ secrets.*
 *.p12
 
 *license*.*
+*scratch.md
 
 documentation/
 examples/

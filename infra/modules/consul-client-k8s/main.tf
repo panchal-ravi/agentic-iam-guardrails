@@ -100,7 +100,7 @@ resource "helm_release" "vault_agent_injector" {
 
   values = [
     templatefile("${path.root}/config/vault-agent-injector-helm-template.yaml", {
-      vault_addr = var.vault_addr
+      vault_addr = var.vault_private_addr
     })
   ]
 }

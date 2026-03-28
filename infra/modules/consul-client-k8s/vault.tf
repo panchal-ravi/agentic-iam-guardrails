@@ -41,10 +41,21 @@ resource "vault_jwt_auth_backend_role" "agent" {
   user_claim_json_pointer = true
 }
 
+resource "vault_identity_oidc" "server" {
+  issuer = "https://${var.vault_public_addr}"
+}
+
+resource "vault_identity_oidc_provider" "default" {
+  name = "default"
+  https_enabled = true
+  issuer_host = var.vault_public_addr
+}
+
 resource "vault_identity_oidc_role" "agent" {
   name = local.vault_jwt_auth_role_name
+  client_id = var.may_act_client_id
   key  = "default"
   ttl  = 3600
 
-  template = "{\"entity_id\": {{identity.entity.id}}, \"agent_id\": {{identity.entity.aliases.${vault_jwt_auth_backend.k8s.accessor}.name}}}"
+  template = "{\"client_id\": \"${var.may_act_client_id}\", \"entity_id\": {{identity.entity.id}}, \"agent_id\": {{identity.entity.aliases.${vault_jwt_auth_backend.k8s.accessor}.name}}}"
 }

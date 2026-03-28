@@ -36,7 +36,14 @@ variable "eks_oidc_provider" {
   type        = string
 }
 
-variable "vault_addr" {
+variable "vault_private_addr" {
   description = "Vault address used by the Vault agent injector Helm values"
   type        = string
 }
+
+variable "vault_public_addr" {
+  description = "Vault public address"
+  type        = string
+}
+
+variable "may_act_client_id" {}
