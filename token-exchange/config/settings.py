@@ -1,8 +1,17 @@
+from app_logging.logger import get_logger
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+logger = get_logger(__name__)
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="IDENTITY_BROKER_", case_sensitive=False)
+    model_config = SettingsConfigDict(
+        env_prefix="IDENTITY_BROKER_",
+        case_sensitive=False,
+        env_file=".env",
+        extra="ignore",
+    )
 
     vault_addr: str = "https://127.0.0.1:8200"
     vault_tls_verify: bool = True
@@ -18,6 +27,9 @@ class Settings(BaseSettings):
     cache_maxsize: int = 1024   # max number of cached tokens
 
     log_level: str = "INFO"
+
+    def log_configured_values(self) -> None:
+        logger.info("settings_loaded", **self.model_dump())
 
 
 settings = Settings()

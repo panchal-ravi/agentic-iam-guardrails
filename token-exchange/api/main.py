@@ -13,6 +13,7 @@ from app_logging.logger import bind_request_id, clear_request_id, configure_logg
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_logging(settings.log_level)
+    settings.log_configured_values()
     structlog.get_logger(__name__).info("identity_broker_starting", vault_addr=settings.vault_addr)
     yield
     structlog.get_logger(__name__).info("identity_broker_stopping")

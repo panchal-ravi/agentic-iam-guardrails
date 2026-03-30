@@ -1,0 +1,276 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import time
+import urllib.error
+import urllib.request
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from threading import Lock
+from typing import Any
+
+from config import Settings
+from errors import AppError
+from logging_utils import log_event
+from security import decode_jwt_payload
+
+
+@dataclass
+class CachedToken:
+    token: str
+    expiry_time: float
+
+
+def read_actor_token(actor_token_path: Path, logger: logging.Logger) -> str:
+    log_event(logger, "actor_token_path_used", actor_token_path=str(actor_token_path))
+
+    if not actor_token_path.exists():
+        raise AppError(
+            status_code=500,
+            error="agent_error",
+            message=f"Actor token file not found at {actor_token_path}",
+        )
+
+    actor_token = actor_token_path.read_text(encoding="utf-8").strip()
+    if not actor_token:
+        raise AppError(
+            status_code=500,
+            error="agent_error",
+            message="Actor token file is empty.",
+        )
+
+    return actor_token
+
+
+def build_cache_key(subject_token: str, role_name: str) -> str:
+    return hashlib.sha256(f"{subject_token}:{role_name}".encode("utf-8")).hexdigest()
+
+
+def _coerce_expiry_timestamp(raw_value: Any, field_name: str) -> float:
+    if isinstance(raw_value, (int, float)):
+        return float(raw_value)
+
+    if isinstance(raw_value, str) and raw_value.strip():
+        trimmed_value = raw_value.strip()
+        try:
+            return float(trimmed_value)
+        except ValueError:
+            try:
+                return datetime.fromisoformat(trimmed_value.replace("Z", "+00:00")).timestamp()
+            except ValueError as exc:
+                raise AppError(
+                    status_code=502,
+                    error="token_exchange_failed",
+                    message=f"Token exchange response contained an invalid {field_name}.",
+                ) from exc
+
+    raise AppError(
+        status_code=502,
+        error="token_exchange_failed",
+        message=f"Token exchange response contained an invalid {field_name}.",
+    )
+
+
+def extract_obo_token_details(response_payload: Any) -> tuple[str, float]:
+    if not isinstance(response_payload, dict):
+        raise AppError(
+            status_code=502,
+            error="token_exchange_failed",
+            message="Token exchange response must be a JSON object.",
+        )
+
+    obo_token = ""
+    for token_field in ("obo_token", "access_token", "token"):
+        candidate = response_payload.get(token_field)
+        if isinstance(candidate, str) and candidate.strip():
+            obo_token = candidate.strip()
+            break
+
+    if not obo_token:
+        raise AppError(
+            status_code=502,
+            error="token_exchange_failed",
+            message="Token exchange response did not include an OBO token.",
+        )
+
+    if "expiry_time" in response_payload:
+        expiry_time = _coerce_expiry_timestamp(
+            response_payload["expiry_time"], "expiry_time"
+        )
+    elif "expires_at" in response_payload:
+        expiry_time = _coerce_expiry_timestamp(
+            response_payload["expires_at"], "expires_at"
+        )
+    elif "expires_in" in response_payload:
+        expires_in = response_payload["expires_in"]
+        if not isinstance(expires_in, (int, float, str)):
+            raise AppError(
+                status_code=502,
+                error="token_exchange_failed",
+                message="Token exchange response contained an invalid expires_in.",
+            )
+        expiry_time = time.time() + float(expires_in)
+    else:
+        obo_payload = decode_jwt_payload(obo_token, "OBO token")
+        exp = obo_payload.get("exp")
+        if not isinstance(exp, (int, float)):
+            raise AppError(
+                status_code=502,
+                error="token_exchange_failed",
+                message="Token exchange response did not include token expiry information.",
+            )
+        expiry_time = float(exp)
+
+    if expiry_time <= time.time():
+        raise AppError(
+            status_code=502,
+            error="token_exchange_failed",
+            message="Token exchange returned an expired OBO token.",
+        )
+
+    return obo_token, expiry_time
+
+
+def perform_token_exchange(
+    subject_token: str,
+    actor_token: str,
+    settings: Settings,
+    logger: logging.Logger,
+    request_id: str,
+) -> tuple[str, float]:
+    log_event(
+        logger,
+        "identity_broker_call",
+        request_id=request_id,
+        token_exchange_url=settings.token_exchange_url,
+    )
+    payload = json.dumps(
+        {"subject_token": subject_token, "actor_token": actor_token}
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        settings.token_exchange_url,
+        data=payload,
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(
+            request, timeout=settings.token_exchange_timeout_seconds
+        ) as response:
+            response_body = response.read().decode("utf-8")
+    except urllib.error.HTTPError as exc:
+        raise AppError(
+            status_code=502,
+            error="token_exchange_failed",
+            message="Failed to obtain OBO token.",
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise AppError(
+            status_code=502,
+            error="token_exchange_failed",
+            message="Failed to obtain OBO token.",
+        ) from exc
+
+    try:
+        response_payload = json.loads(response_body)
+    except json.JSONDecodeError as exc:
+        raise AppError(
+            status_code=502,
+            error="token_exchange_failed",
+            message="Token exchange response was not valid JSON.",
+        ) from exc
+
+    obo_token, expiry_time = extract_obo_token_details(response_payload)
+    log_event(
+        logger,
+        "obo_token_exchange_completed",
+        request_id=request_id,
+        expiry_time=expiry_time,
+        obo_token=obo_token,
+    )
+    return obo_token, expiry_time
+
+
+class OboTokenService:
+    def __init__(self, settings: Settings, logger: logging.Logger):
+        self.settings = settings
+        self.logger = logger
+        self.cache: dict[str, CachedToken] = {}
+        self.lock = Lock()
+
+    def clear_cache(self) -> None:
+        self.cache.clear()
+
+    def _get_cached_token(self, cache_key: str) -> CachedToken | None:
+        cached_value = self.cache.get(cache_key)
+        if cached_value is None:
+            return None
+
+        if not isinstance(cached_value, CachedToken):
+            raise AppError(
+                status_code=500,
+                error="cache_error",
+                message="OBO token cache is corrupted.",
+            )
+
+        if not isinstance(cached_value.token, str) or not isinstance(
+            cached_value.expiry_time, (int, float)
+        ):
+            raise AppError(
+                status_code=500,
+                error="cache_error",
+                message="OBO token cache is corrupted.",
+            )
+
+        if float(cached_value.expiry_time) <= time.time():
+            del self.cache[cache_key]
+            return None
+
+        return cached_value
+
+    def perform_token_exchange(self, subject_token: str, actor_token: str, request_id: str) -> tuple[str, float]:
+        return perform_token_exchange(
+            subject_token=subject_token,
+            actor_token=actor_token,
+            settings=self.settings,
+            logger=self.logger,
+            request_id=request_id,
+        )
+
+    def resolve_token(self, subject_token: str, request_id: str) -> str:
+        cache_key = build_cache_key(subject_token, self.settings.obo_role_name)
+
+        with self.lock:
+            cached_entry = self._get_cached_token(cache_key)
+            if cached_entry is not None:
+                log_event(
+                    self.logger,
+                    "token_cache_hit",
+                    request_id=request_id,
+                    cache_key=cache_key,
+                    expiry_time=cached_entry.expiry_time,
+                    obo_token=cached_entry.token,
+                )
+                return cached_entry.token
+
+            log_event(
+                self.logger,
+                "token_cache_miss",
+                request_id=request_id,
+                cache_key=cache_key,
+            )
+            actor_token = read_actor_token(self.settings.actor_token_path, self.logger)
+            obo_token, expiry_time = self.perform_token_exchange(
+                subject_token=subject_token,
+                actor_token=actor_token,
+                request_id=request_id,
+            )
+            self.cache[cache_key] = CachedToken(
+                token=obo_token,
+                expiry_time=expiry_time,
+            )
+            return obo_token

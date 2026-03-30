@@ -36,6 +36,16 @@ variable "eks_oidc_provider" {
   type        = string
 }
 
+variable "identity_claims" {
+  description = "Custom OIDC claims added to Vault-issued workload identity tokens"
+  type = object({
+    org           = string
+    bu            = string
+    department    = string
+    service_group = string
+  })
+}
+
 variable "vault_private_addr" {
   description = "Vault address used by the Vault agent injector Helm values"
   type        = string
@@ -45,5 +55,3 @@ variable "vault_public_addr" {
   description = "Vault public address"
   type        = string
 }
-
-variable "may_act_client_id" {}

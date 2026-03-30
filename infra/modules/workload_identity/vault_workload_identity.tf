@@ -64,11 +64,10 @@ resource "vault_identity_oidc" "server" {
 resource "vault_identity_oidc_role" "application_identity" {
   name      = "application_identity"
   key       = "default"
-  client_id = var.may_act_client_id
   ttl       = 1800 # Token TTL in seconds
 
   # The 'template' argument defines the custom OIDC claims using HCL's heredoc syntax
-  template = "{\"client_id\": \"${var.may_act_client_id}\", \"vault_entity_id\": {{identity.entity.id}}, \"agent_id\": {{identity.entity.aliases.${vault_jwt_auth_backend.nomad.accessor}.name}}}"
+  template = "\"org\": \"${var.identity_claims.org}\", \"bu\": \"${var.identity_claims.bu}\", \"department\": \"${var.identity_claims.department}\", \"service_group\": \"${var.identity_claims.service_group}\", \"vault_entity_id\": {{identity.entity.id}}, \"agent_id\": {{identity.entity.aliases.${vault_jwt_auth_backend.nomad.accessor}.name}}}"
 }
 
 

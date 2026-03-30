@@ -62,6 +62,8 @@ secrets.*
 documentation/
 examples/
 
+users_repository*.json
+
 
 # OS
 .DS_Store

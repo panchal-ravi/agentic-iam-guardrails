@@ -1,10 +1,8 @@
 # Identity Broker
 
-A Python-based identity broker that:
-1. Exchanges a **HashiCorp Vault token** for a **Vault-signed OIDC Identity JWT**.
-2. Performs an **IBM Verify on-behalf-of (OBO) token exchange** — takes a `subject_token` + `actor_token` (Vault Identity JWT) and returns an IBM Verify access token on behalf of the subject.
+A Python-based identity broker that performs an **IBM Verify on-behalf-of (OBO) token exchange** — takes a `subject_token` + `actor_token` and returns an IBM Verify access token on behalf of the subject.
 
-Exposes both flows as a FastAPI REST service with in-memory TTL caching.
+Exposes the OBO flow as a FastAPI REST service with in-memory TTL caching.
 
 ## Architecture
 
@@ -15,8 +13,6 @@ Client Application
       ▼
 Identity Broker API  (FastAPI + Uvicorn)
       │
-      ├── POST /v1/identity/token ──────► VaultIdentityBroker ──► HashiCorp Vault
-      │
       └── POST /v1/identity/obo-token ──► OBOBroker ──────────► IBM Verify
 ```
 
@@ -24,7 +20,6 @@ Identity Broker API  (FastAPI + Uvicorn)
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) package manager
-- A running HashiCorp Vault instance with OIDC identity configured
 - An IBM Verify tenant (for the OBO flow)
 - Docker with [Buildx](https://docs.docker.com/buildx/working-with-buildx/) plugin (for multi-platform builds)
 
@@ -41,14 +36,6 @@ uv sync --group dev
 ## Configuration
 
 All settings use the `IDENTITY_BROKER_` prefix and can be set as environment variables:
-
-### Vault settings
-
-| Variable | Default | Description |
-|---|---|---|
-| `IDENTITY_BROKER_VAULT_ADDR` | `https://127.0.0.1:8200` | Vault server address |
-| `IDENTITY_BROKER_VAULT_TLS_VERIFY` | `true` | Enable TLS verification |
-| `IDENTITY_BROKER_VAULT_CA_BUNDLE` | _(unset)_ | Path to a PEM CA bundle for a self-signed or private CA. When set, TLS verification uses this bundle instead of the default roots. |
 
 ### IBM Verify OBO settings
 
@@ -75,19 +62,27 @@ Uvicorn server settings:
 Example:
 
 ```bash
-export IDENTITY_BROKER_VAULT_ADDR="https://vault.example.com:8200"
-export IDENTITY_BROKER_VAULT_TLS_VERIFY="true"
-
-# When Vault uses a self-signed or private CA certificate:
-# export IDENTITY_BROKER_VAULT_CA_BUNDLE="/etc/ssl/certs/vault-ca.pem"
-
-# IBM Verify OBO settings:
 export IDENTITY_BROKER_VERIFY_BASE_URL="https://tenant.verify.ibm.com"
 export IDENTITY_BROKER_OBO_CLIENT_ID="<redacted-obo-client-id>"
 
 export UVICORN_HOST=0.0.0.0
 export UVICORN_PORT=9090
 ```
+
+### Using a `.env` file
+
+You can also keep the service configuration in a `.env` file at the app root. The service loads it automatically through Pydantic settings:
+
+```bash
+cat > .env <<'EOF'
+IDENTITY_BROKER_VERIFY_BASE_URL=https://tenant.verify.ibm.com
+IDENTITY_BROKER_OBO_CLIENT_ID=<redacted-obo-client-id>
+UVICORN_HOST=0.0.0.0
+UVICORN_PORT=8080
+EOF
+```
+
+If the same variable is present both in `.env` and in the environment, the environment variable wins.
 
 ## Running the Service
 
@@ -117,15 +112,8 @@ The Docker build installs only third-party dependencies into `/app/.venv` in the
 # Build for the current host platform
 docker build -t identity-broker .
 
-# Run with Vault token exchange only
+# Run with OBO exchange enabled
 docker run -p 8080:8080 \
-  -e IDENTITY_BROKER_VAULT_ADDR="https://vault.example.com:8200" \
-  identity-broker
-
-# Run with both Vault and IBM Verify OBO exchange enabled
-docker run -p 8080:8080 \
-  -e IDENTITY_BROKER_VAULT_ADDR="https://vault.example.com:8200" \
-  -e IDENTITY_BROKER_VAULT_TLS_VERIFY="false" \
   -e IDENTITY_BROKER_VERIFY_BASE_URL="https://tenant.verify.ibm.com" \
   -e IDENTITY_BROKER_OBO_CLIENT_ID="<redacted-obo-client-id>" \
   identity-broker
@@ -134,8 +122,6 @@ docker run -p 8080:8080 \
 docker run -p 9090:9090 \
   -e UVICORN_HOST=0.0.0.0 \
   -e UVICORN_PORT=9090 \
-  -e IDENTITY_BROKER_VAULT_ADDR="https://vault.example.com:8200" \
-  -e IDENTITY_BROKER_VAULT_TLS_VERIFY="false" \
   -e IDENTITY_BROKER_VERIFY_BASE_URL="https://tenant.verify.ibm.com" \
   -e IDENTITY_BROKER_OBO_CLIENT_ID="<redacted-obo-client-id>" \
   identity-broker
@@ -163,36 +149,84 @@ docker buildx build \
   --load .
 ```
 
+### Kubernetes
+
+For Kubernetes, store the `.env` file as a Secret and mount it at `/app/.env`. The image already starts with the Dockerfile default command, `CMD ["uvicorn", "api.main:app"]`, and the app reads `/app/.env` automatically. Environment variables defined in the pod override values from the mounted `.env` file.
+
+#### 1. Create the Secret from `.env`
+
+```bash
+kubectl create secret generic token-exchange-env \
+  --from-file=.env=.env
+```
+
+#### 2. Deploy the service
+
+This example mounts the Secret at the application root as `/app/.env`. The optional `IDENTITY_BROKER_VERIFY_BASE_URL` environment variable overrides the value from the mounted `.env` file.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-exchange
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: token-exchange
+  template:
+    metadata:
+      labels:
+        app: token-exchange
+    spec:
+      containers:
+        - name: token-exchange
+          image: <registry>/<image>:<tag>
+          ports:
+            - containerPort: 8080
+          env:
+            - name: UVICORN_HOST
+              value: "0.0.0.0"
+            - name: UVICORN_PORT
+              value: "8080"
+            # Optional: overrides the value from /app/.env.
+            - name: IDENTITY_BROKER_VERIFY_BASE_URL
+              value: "https://tenant.verify.ibm.com"
+          volumeMounts:
+            - name: token-exchange-env
+              mountPath: /app/.env
+              subPath: .env
+              readOnly: true
+      volumes:
+        - name: token-exchange-env
+          secret:
+            secretName: token-exchange-env
+```
+
+You can expose the deployment with a `Service`:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: token-exchange
+spec:
+  selector:
+    app: token-exchange
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+```
+
+Apply both resources:
+
+```bash
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+```
+
 ## API Reference
-
-### POST /v1/identity/token
-
-Exchange a Vault token for a Vault-signed OIDC Identity JWT.
-
-**Request body:**
-
-| Field | Type | Description |
-|---|---|---|
-| `vault_token` | string | Vault authentication token (e.g. `hvs.xxxx`) |
-| `role_name` | string | Vault OIDC role name |
-
-**Response body:**
-
-| Field | Type | Description |
-|---|---|---|
-| `identity_token` | string | Vault-signed OIDC JWT |
-| `expires_at` | integer | Token expiry as Unix timestamp |
-| `cached` | boolean | Whether the token was served from cache |
-
-**HTTP status codes:**
-
-| Code | Description |
-|---|---|
-| `200` | Success |
-| `400` | Invalid request body |
-| `401` | Vault authentication failure (invalid/expired token) |
-| `500` | Internal service error |
-| `503` | Vault unavailable |
 
 ### GET /healthz
 
@@ -209,7 +243,7 @@ Exchange a `subject_token` + `actor_token` for an IBM Verify access token on beh
 | Field | Type | Description |
 |---|---|---|
 | `subject_token` | string | Caller's access token (JWT) — the identity to act on behalf of |
-| `actor_token` | string | Vault Identity JWT — identifies the acting service |
+| `actor_token` | string | Token identifying the acting service |
 
 **Response body:**
 
@@ -233,62 +267,6 @@ Exchange a `subject_token` + `actor_token` for an IBM Verify access token on beh
 ## Testing the API
 
 ### Using curl
-
-#### Exchange a Vault token
-
-```bash
-curl -X POST http://localhost:8080/v1/identity/token \
-  -H "Content-Type: application/json" \
-  -d '{
-    "vault_token": "hvs.XXXXXXXXXXXXXXXXXXXX",
-    "role_name": "payments-api"
-  }'
-```
-
-**Expected response (200 OK):**
-
-```json
-{
-  "identity_token": "<redacted-identity-token>",
-  "expires_at": 1700000000,
-  "cached": false
-}
-```
-
-#### Sending the same request again (cache hit)
-
-```bash
-curl -X POST http://localhost:8080/v1/identity/token \
-  -H "Content-Type: application/json" \
-  -d '{
-    "vault_token": "hvs.XXXXXXXXXXXXXXXXXXXX",
-    "role_name": "payments-api"
-  }'
-```
-
-**Expected response — note `cached: true`:**
-
-```json
-{
-  "identity_token": "<redacted-identity-token>",
-  "expires_at": 1700000000,
-  "cached": true
-}
-```
-
-#### Pass a correlation ID for tracing
-
-```bash
-curl -X POST http://localhost:8080/v1/identity/token \
-  -H "Content-Type: application/json" \
-  -H "X-Request-ID: my-trace-id-123" \
-  -d '{
-    "vault_token": "hvs.XXXXXXXXXXXXXXXXXXXX",
-    "role_name": "payments-api"
-  }'
-```
-
-The response will echo back `X-Request-ID: my-trace-id-123` as a header.
 
 #### Health check
 
@@ -336,7 +314,7 @@ open http://localhost:8080/docs
 
 1. Open Postman and click **New → HTTP Request**.
 2. Set the method to **POST**.
-3. Enter the URL: `http://localhost:8080/v1/identity/token`
+3. Enter the URL: `http://localhost:8080/v1/identity/obo-token`
 
 #### Step 2 — Set the request body
 
@@ -346,8 +324,8 @@ open http://localhost:8080/docs
 
 ```json
 {
-  "vault_token": "hvs.XXXXXXXXXXXXXXXXXXXX",
-  "role_name": "payments-api"
+  "subject_token": "<redacted-subject-token>",
+  "actor_token": "<redacted-actor-token>"
 }
 ```
 
@@ -358,7 +336,7 @@ open http://localhost:8080/docs
 
 #### Step 4 — Send the request
 
-Click **Send**. You should receive a `200 OK` with the identity token in the response body.
+Click **Send**. You should receive a `200 OK` with the exchanged access token in the response body.
 
 #### Step 5 — Health check
 
@@ -370,39 +348,39 @@ Click **Send**. You should receive a `200 OK` with the identity token in the res
 
 ### Error scenarios
 
-#### Invalid Vault token (401)
+#### IBM Verify authentication failure (401)
 
 ```bash
-curl -X POST http://localhost:8080/v1/identity/token \
+curl -X POST http://localhost:8080/v1/identity/obo-token \
   -H "Content-Type: application/json" \
   -d '{
-    "vault_token": "hvs.INVALID",
-    "role_name": "payments-api"
+    "subject_token": "<redacted-subject-token>",
+    "actor_token": "<redacted-invalid-actor-token>"
   }'
 ```
 
 ```json
-{"detail": "Invalid or expired Vault token"}
+{"detail": "IBM Verify authentication failure"}
 ```
 
 #### Missing required field (400)
 
 ```bash
-curl -X POST http://localhost:8080/v1/identity/token \
+curl -X POST http://localhost:8080/v1/identity/obo-token \
   -H "Content-Type: application/json" \
   -d '{
-    "vault_token": "hvs.XXXXXXXXXXXXXXXXXXXX"
+    "subject_token": "<redacted-subject-token>"
   }'
 ```
 
 ```json
-{"detail": [{"msg": "Field required", "loc": ["body", "role_name"]}]}
+{"detail": [{"msg": "Field required", "loc": ["body", "actor_token"]}]}
 ```
 
-#### Vault unreachable (503)
+#### IBM Verify unreachable (503)
 
 ```json
-{"detail": "Vault is unavailable"}
+{"detail": "IBM Verify is unavailable"}
 ```
 
 ---
@@ -427,20 +405,16 @@ uv run pytest tests/test_routes.py -v
 .
 ├── api/
 │   ├── main.py         # FastAPI app, middleware, lifespan
-│   └── routes.py       # POST /v1/identity/token, POST /v1/identity/obo-token, GET /healthz
-├── broker/
-│   ├── broker.py       # VaultIdentityBroker (get_signed_identity_token)
-│   ├── cache.py        # TTLCache wrapper with JWT expiry validation
-│   └── vault_client.py # hvac.Client wrapper
+│   └── routes.py       # POST /v1/identity/obo-token, GET /healthz
 ├── verify/
 │   ├── verify_client.py # IBMVerifyClient (HTTP OBO token exchange)
 │   └── obo_broker.py    # OBOBroker (exchange_obo_token)
 ├── models/
-│   └── schemas.py      # TokenRequest/TokenResponse, OBOTokenRequest/OBOTokenResponse
+│   └── schemas.py      # Request/response schemas
 ├── app_logging/
 │   └── logger.py       # structlog structured JSON logger
 ├── exceptions/
-│   └── errors.py       # VaultBrokerError + VerifyOBOError hierarchies
+│   └── errors.py       # Service exception hierarchies
 └── config/
     └── settings.py     # Pydantic settings (env vars)
 ```
@@ -449,9 +423,6 @@ uv run pytest tests/test_routes.py -v
 
 ## Security Notes
 
-- **TLS verification** is enabled by default — never disable it in production.
-- When Vault uses a **self-signed or private CA**, set `IDENTITY_BROKER_VAULT_CA_BUNDLE` to your PEM bundle path instead of setting `VAULT_TLS_VERIFY=false`. This keeps full TLS verification while trusting your CA.
-- Vault tokens, JWTs, and IBM Verify access tokens are **never logged**.
-- Cache keys are hashed — `sha256(vault_token + role_name)` for Vault tokens and `sha256(subject_token + actor_token)` for OBO tokens — raw tokens are never stored as keys.
-- The Vault policy should grant access to `identity/oidc/token/<role_name>` only.
+- Subject tokens, actor tokens, and IBM Verify access tokens are **never logged**.
+- Cache keys are hashed before storage; raw tokens are never stored as cache keys.
 - `IDENTITY_BROKER_VERIFY_BASE_URL` and `IDENTITY_BROKER_OBO_CLIENT_ID` must be set before starting the service if the OBO endpoint will be used.

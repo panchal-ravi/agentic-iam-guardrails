@@ -1,0 +1,148 @@
+"""Shared authenticated navbar component."""
+
+import base64
+import json
+
+import streamlit as st
+import streamlit.components.v1 as components
+
+from auth.session import get_access_token, get_user_info, logout
+
+
+def _copy_to_clipboard_button(text: str) -> None:
+    """Render an IBM Carbon-styled copy-to-clipboard button inside a components.html iframe.
+
+    The token is embedded in a <script> block (not an HTML attribute) to avoid
+    quote-escaping issues. JWTs only contain base64url chars so backtick embedding is safe.
+    """
+    components.html(
+        f"""
+        <button id="copy-btn"
+            onclick="copyToken()"
+            style="
+                background-color: transparent;
+                color: #0f62fe;
+                border: 1px solid #0f62fe;
+                border-radius: 0;
+                padding: 6px 14px;
+                font-family: 'IBM Plex Sans', sans-serif;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+            "
+        >📋 Copy to clipboard</button>
+        <script>
+            var TOKEN = `{text}`;
+            function copyToken() {{
+                if (navigator.clipboard) {{
+                    navigator.clipboard.writeText(TOKEN)
+                        .then(done)
+                        .catch(function() {{ fallback(TOKEN); }});
+                }} else {{
+                    fallback(TOKEN);
+                }}
+            }}
+            function fallback(t) {{
+                var ta = document.createElement('textarea');
+                ta.value = t;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.focus(); ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                done();
+            }}
+            function done() {{
+                var btn = document.getElementById('copy-btn');
+                btn.innerText = '✅ Copied!';
+                setTimeout(function() {{ btn.innerText = '📋 Copy to clipboard'; }}, 2000);
+            }}
+        </script>
+        """,
+        height=44,
+    )
+
+
+def _decode_jwt_payload(token: str) -> str:
+    """Decode and pretty-print the JWT payload as JSON (no signature verification)."""
+    try:
+        payload_b64 = token.split(".")[1]
+        padding = 4 - len(payload_b64) % 4
+        decoded = json.loads(base64.urlsafe_b64decode(payload_b64 + "=" * padding))
+        return json.dumps(decoded, indent=2)
+    except Exception:
+        return token
+
+
+def render_access_token_popover(use_container_width: bool = True) -> None:
+    """Render the access token popover button."""
+    access_token = get_access_token()
+
+    with st.popover("🔑 Access Token", use_container_width=use_container_width):
+        st.markdown("**OAuth 2.0 JWT Access Token**")
+        st.markdown("**Raw Encoded Token**")
+        _copy_to_clipboard_button(access_token)
+        st.code(access_token, language="text")
+        st.markdown("**Decoded Payload**")
+        st.code(_decode_jwt_payload(access_token), language="json")
+
+
+def render_navbar() -> None:
+    """
+    Render the top navigation bar on all authenticated pages.
+
+    Layout: [App title + user info] | [Theme toggle] | [Logout]
+    """
+    user_info = get_user_info()
+    display_name = user_info.get("name", "User")
+    initials = user_info.get("initials", "?")
+    theme = st.session_state.get("theme", "dark")
+
+    # Theme-aware colors for inline HTML
+    text_color = "#161616" if theme == "light" else "#ffffff"
+    muted_color = "#525252" if theme == "light" else "#c6c6c6"
+    border_color = "#e0e0e0" if theme == "light" else "#393939"
+
+    st.markdown('<div class="navbar-container">', unsafe_allow_html=True)
+
+    title_col, theme_col, logout_col = st.columns([6, 1.2, 1])
+
+    with title_col:
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:16px;padding:4px 0;'>"
+            f"<span style='font-family:\"IBM Plex Sans\",sans-serif;font-size:20px;"
+            f"font-weight:300;color:{text_color};letter-spacing:-0.5px;'>"
+            f"<span style='color:#0f62fe;font-weight:600;'>IBM</span> Verify</span>"
+            f"<span style='font-family:\"IBM Plex Sans\",sans-serif;font-size:13px;"
+            f"color:{muted_color};border-left:1px solid {border_color};padding-left:16px;'>"
+            f"<span style='display:inline-flex;align-items:center;justify-content:center;"
+            f"width:24px;height:24px;background-color:#0f62fe;color:#ffffff;font-size:11px;"
+            f"font-weight:600;border-radius:50%;margin-right:8px;vertical-align:middle;'>"
+            f"{initials}</span>{display_name}</span></div>",
+            unsafe_allow_html=True,
+        )
+
+    with theme_col:
+        options = ["🌙 Dark", "☀️ Light"]
+        selected = st.selectbox(
+            "Theme",
+            options,
+            index=0 if theme == "dark" else 1,
+            label_visibility="collapsed",
+            key="theme_select",
+        )
+        new_theme = "dark" if selected == "🌙 Dark" else "light"
+        if new_theme != theme:
+            st.session_state["theme"] = new_theme
+            st.rerun()
+
+    with logout_col:
+        if st.button("Logout", use_container_width=True, key="navbar_logout", type="secondary"):
+            logout()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown(
+        f'<hr style="border-color:{border_color}; margin: 0 0 32px 0;">',
+        unsafe_allow_html=True,
+    )
