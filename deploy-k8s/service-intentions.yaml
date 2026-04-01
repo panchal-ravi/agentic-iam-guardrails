@@ -1,0 +1,29 @@
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: token-exchange
+  namespace: default
+spec:
+  destination:
+    name: token-exchange
+    namespace: default
+  sources:
+    - name: ai-agent
+      action: allow
+      namespace: default
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: ai-agent
+  namespace: default
+spec:
+  destination:
+    name: ai-agent
+    namespace: default
+  sources:
+    - name: web
+      action: allow
+      namespace: default
+---

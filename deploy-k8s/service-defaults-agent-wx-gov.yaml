@@ -1,0 +1,124 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceDefaults
+metadata:
+  name: agent
+  namespace: default
+spec:
+  protocol: http
+  envoyExtensions:
+  - name: "builtin/lua" # has to be this so it can be recognized by envoy
+    arguments:
+      proxyType: "connect-proxy"
+      listener: "inbound"
+      script: |-
+        function envoy_on_request(request_handle)
+          local body = request_handle:body()
+          local body_str = body:getBytes(0, body:length())
+          request_handle:logInfo("wx-gov-api inbound request: " .. body_str)
+
+          local dynamic_metadata = stream_info:dynamicMetadata()
+          local trust_domain = nil
+          if dynamic_metadata and dynamic_metadata["consul"] then
+            local consul_ns = dynamic_metadata["consul"]
+            if type(consul_ns) == "table" and consul_ns["trust-domain"] then
+              trust_domain = tostring(consul_ns["trust-domain"])
+            end
+          end
+
+          request_handle:logInfo("Trust Domain: " .. tostring(trust_domain))
+          
+          local wxg_service = "wx-gov-api.default." .. trust_domain
+
+          -- Prepare wx-gov-api POST request
+          local headers = {
+            [":method"] = "POST",
+            [":path"] = "/evaluate",
+            [":authority"] = wxg_service,
+            ["content-type"] = "text/plain"
+          }
+
+          -- Base64 encode body_str using Envoy's built-in function
+          local encoded_body = request_handle:base64Escape(body_str)
+          local response_headers, response_body = request_handle:httpCall(
+            wxg_service, -- cluster name
+            headers,
+            encoded_body, -- body
+            30000 -- timeout in milliseconds
+          )
+          
+          request_handle:logInfo("wx-gov-api response, pre-invoke agent: " .. response_body)
+          -- Check if response status code is 400 and log headers
+          local status_code = tonumber(response_headers[":status"])
+          request_handle:logInfo("wx-gov-api response status: " .. tostring(status_code))
+          if status_code == 400 then
+             -- Overwrite the response body with response_body from wx-gov-api
+            if response_body then
+              request_handle:body():setBytes(response_body)
+              -- Calculate the new content length
+              local content_length = request_handle:body():length()
+              -- Replace the 'content-length' header with the new length
+              request_handle:headers():replace("content-length", tostring(content_length))
+              request_handle:respond({[":status"] = "400"}, response_body)
+              return
+            end
+          end
+        end
+  - name: "builtin/lua" # has to be this so it can be recognized by envoy
+    arguments:
+      proxyType: "connect-proxy"
+      listener: "inbound"
+      script: |-
+        function envoy_on_response(response_handle)
+          response_handle:logInfo("wx-gov-api outbound response...")
+          local status_code = tonumber(response_handle:headers():get(":status"))
+          response_handle:logInfo("wx-gov-api outbound response status: " .. tostring(status_code))
+          
+          if not status_code or status_code ~= 200 then
+            response_handle:logInfo("Skipping wx-gov-api /mask call for non-200 response")
+            return
+          end
+          
+          local body = response_handle:body(true)
+          if body then
+            local body_str = body:getBytes(0, body:length())
+            local dynamic_metadata = response_handle:streamInfo():dynamicMetadata()
+            local trust_domain = nil
+            if dynamic_metadata and dynamic_metadata["consul"] then
+              local consul_ns = dynamic_metadata["consul"]
+              if type(consul_ns) == "table" and consul_ns["trust-domain"] then
+                trust_domain = tostring(consul_ns["trust-domain"])
+              end
+            end
+            local wxg_service = "wx-gov-api.default." .. trust_domain
+
+            -- Prepare wx-gov-api POST request
+            local headers = {
+              [":method"] = "POST",
+              [":path"] = "/mask",
+              [":authority"] = wxg_service,
+              ["content-type"] = "text/plain"
+            }
+
+            local encoded_body = response_handle:base64Escape(body_str)
+            local response_headers, response_body = response_handle:httpCall(
+              wxg_service, -- cluster name
+              headers,
+              encoded_body, -- body
+              30000 -- timeout in milliseconds
+            )
+
+            response_handle:logInfo("wx-gov-api outbound response body: " .. body_str)
+            response_handle:logInfo("wx-gov-api response, post-invoke agent: " .. response_body)
+
+            -- Overwrite the response body with response_body from wx-gov-api
+            if response_body then
+              response_handle:body():setBytes(response_body)
+              -- Calculate the new content length
+              local content_length = response_handle:body():length()
+              -- Replace the 'content-length' header with the new length
+              response_handle:headers():replace("content-length", tostring(content_length))
+            end
+          else
+            response_handle:logInfo("wx-gov-api outbound response body: <empty>")
+          end
+        end

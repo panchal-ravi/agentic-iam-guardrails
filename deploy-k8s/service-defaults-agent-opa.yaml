@@ -1,0 +1,164 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceDefaults
+metadata:
+  name: ai-agent
+  namespace: default
+spec:
+  protocol: http
+  envoyExtensions:
+  - name: "builtin/lua" # has to be this so it can be recognized by envoy
+    arguments:
+      proxyType: "connect-proxy"
+      listener: "inbound"
+      script: |-
+        function envoy_on_request(request_handle)
+
+          request_handle:logInfo("Inbound Request")
+          -- Log all key/value pairs from dynamicMetadata
+          local stream_info = request_handle:streamInfo()
+
+          local dynamic_metadata = stream_info:dynamicMetadata()
+          local trust_domain = nil
+          if dynamic_metadata and dynamic_metadata["consul"] then
+            local consul_ns = dynamic_metadata["consul"]
+            if type(consul_ns) == "table" and consul_ns["trust-domain"] then
+              trust_domain = tostring(consul_ns["trust-domain"])
+            end
+          end
+
+          request_handle:logInfo("Trust Domain: " .. tostring(trust_domain))
+
+          
+          local body = request_handle:body()
+          local body_str = body:getBytes(0, body:length())
+          request_handle:logInfo("Inbound Request Body: " .. body_str)
+
+          -- Prepare OPA POST request
+          local headers = {
+            [":method"] = "POST",
+            [":path"] = "/v1/data/app/security",
+            [":authority"] = "opa-service.opa.svc.cluster.local",
+            ["content-type"] = "application/json"
+          }
+
+          -- Check if body_str is JSON. If not, add quotes if missing.
+          local function is_json(str)
+            if not str or str == '' then return false end
+            local first = string.sub(str, 1, 1)
+            local last = string.sub(str, -1)
+            if (first == '{' and last == '}') or (first == '[' and last == ']') then
+              return true
+            end
+            return false
+          end
+
+          if not is_json(body_str) then
+            -- Check if starts and ends with quotes
+            local first = string.sub(body_str, 1, 1)
+            local last = string.sub(body_str, -1)
+            if not (first == '"' and last == '"') then
+              body_str = '"' .. body_str .. '"'
+            end
+          end
+
+          -- Base64 encode body_str using Envoy's built-in function
+          local encoded_body = request_handle:base64Escape(body_str)
+          local opa_body = '{"input":"' .. encoded_body .. '"}'
+
+          local response_headers, response_body = request_handle:httpCall(
+            "opa-service-cluster", -- cluster name
+            headers,
+            opa_body,
+            5000 -- timeout in milliseconds
+          )
+          
+
+          request_handle:logInfo("OPA response, pre-invoke agent: " .. response_body)
+
+          -- Parse response_body JSON to check result fields
+          -- Manually parse for '"result":{' and check for any field with value true
+          local result_start = string.find(response_body, '"result"%s*:%s*{')
+          if result_start then
+            -- Find the closing '}' for the result object
+            local brace_count = 1
+            local i = result_start + string.len('"result":{')
+            local result_end = nil
+            while i <= #response_body do
+              local c = string.sub(response_body, i, i)
+              if c == '{' then brace_count = brace_count + 1 end
+              if c == '}' then
+                brace_count = brace_count - 1
+                if brace_count == 0 then
+                  result_end = i
+                  break
+                end
+              end
+              i = i + 1
+            end
+            if result_end then
+              local result_obj = string.sub(response_body, result_start + string.len('"result":'), result_end)
+              -- Look for any : true (allow whitespace)
+              if string.find(result_obj, ':%s*true') then
+                response_body = "This content was blocked due to security policy violation"
+                request_handle:respond({[":status"] = "400", ["content-type"] = "text/plain"}, response_body)
+                return
+              end
+            end
+          end
+        end
+  - name: "builtin/lua" # has to be this so it can be recognized by envoy
+    arguments:
+      proxyType: "connect-proxy"
+      listener: "inbound"
+      script: |-
+        function envoy_on_response(response_handle)
+          response_handle:logInfo("Sending Response")
+          local body = response_handle:body(true)
+
+          local status_code = tonumber(response_handle:headers():get(":status"))
+          response_handle:logInfo("OPA outbound response status: " .. tostring(status_code))
+          
+          if not status_code or status_code ~= 200 then
+            response_handle:logInfo("Skipping OPA /mask call for non-200 response")
+            local body_str = body:getBytes(0, body:length())
+            response_handle:logInfo("Response Body: " .. body_str)
+            return
+          end
+
+          if body then
+            local body_str = body:getBytes(0, body:length())
+
+            local headers = {
+              [":method"] = "POST",
+              [":path"] = "/v1/data/app/masking/masked_result",
+              [":authority"] = "opa-service.opa.svc.cluster.local",
+              ["content-type"] = "application/json"
+            }
+
+            local encoded_body = response_handle:base64Escape(body_str)
+            local opa_body = '{"input":"' .. encoded_body .. '"}'
+
+            local response_headers, response_body = response_handle:httpCall(
+              "opa-service-cluster",
+              headers,
+              opa_body,
+              5000
+            )
+
+            response_handle:logInfo("Response Body: " .. body_str)
+            response_handle:logInfo("OPA response, post-invoke agent: " .. response_body)
+
+            -- Overwrite the response body with response_body from OPA
+            if response_body then
+              response_handle:body():setBytes(response_body)
+              -- Set content-type to application/json
+              response_handle:headers():replace("content-type", "application/json")
+              -- Calculate the new content length
+              local content_length = response_handle:body():length()
+              -- Replace the 'content-length' header with the new length
+              response_handle:headers():replace("content-length", tostring(content_length))
+            end
+          else
+            response_handle:logInfo("Response Body: <empty>")
+          end
+        end
