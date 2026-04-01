@@ -30,6 +30,18 @@ variable "boundary_version" {
   default     = "0.15.2+ent"
 }
 
+variable "enable_k8sosquery" {
+  description = "Whether to install the optional k8sosquery Helm release"
+  type        = bool
+  default     = false
+}
+
+variable "enable_kubequery" {
+  description = "Whether to install the optional kubequery Helm release"
+  type        = bool
+  default     = false
+}
+
 variable "consul_version" {
   description = "Consul Enterprise image tag used by the Consul Helm deployment"
   type        = string

@@ -60,6 +60,41 @@ def _extract_agent_response(response: requests.Response) -> dict:
     return {"response": str(data), "obo_token": ""}
 
 
+def _extract_error_body(response: requests.Response) -> str:
+    """Extract a readable error message from JSON or plain-text responses."""
+    content_type = response.headers.get("Content-Type", "")
+
+    if "application/json" in content_type.lower():
+        try:
+            data = response.json()
+        except requests.JSONDecodeError:
+            data = None
+
+        if isinstance(data, dict):
+            for key in ("error_description", "detail", "message", "error", "response"):
+                value = data.get(key)
+                if value:
+                    return str(value).strip()
+
+            return str(data).strip()
+
+        if data is not None:
+            return str(data).strip()
+
+    return response.text.strip()
+
+
+def _raise_agent_http_error(response: requests.Response, log_message: str) -> None:
+    """Raise a RuntimeError that includes the response body when available."""
+    error_body = _extract_error_body(response)
+    _LOGGER.error(log_message, response.status_code)
+
+    if error_body:
+        raise RuntimeError(f"Agent API error {response.status_code}: {error_body}")
+
+    raise RuntimeError(f"Agent API error {response.status_code}")
+
+
 def invoke_agent(message: str, history: list, access_token: str = "") -> dict:
     """
     Send a message to the remote AI agent and return the full response payload.
@@ -86,12 +121,10 @@ def invoke_agent(message: str, history: list, access_token: str = "") -> dict:
     try:
         _LOGGER.info("Invoking agent API at %s", _AGENT_URL)
         response = requests.post(_AGENT_URL, json=payload, headers=headers, timeout=60)
-        response.raise_for_status()
+        if not response.ok:
+            _raise_agent_http_error(response, "Agent API returned HTTP %s")
         _LOGGER.info("Agent API completed with status %s", response.status_code)
         return _extract_agent_response(response)
-    except requests.HTTPError as exc:
-        _LOGGER.error("Agent API returned HTTP %s", exc.response.status_code)
-        raise RuntimeError(f"Agent API error {exc.response.status_code}: {exc.response.text}") from exc
     except requests.RequestException as exc:
         _LOGGER.error("Agent API request failed: %s", exc)
         raise RuntimeError(f"Agent API request failed: {exc}") from exc
@@ -116,7 +149,8 @@ def stream_agent_response(
             timeout=(10, 300),
             stream=True,
         ) as response:
-            response.raise_for_status()
+            if not response.ok:
+                _raise_agent_http_error(response, "Streaming agent API returned HTTP %s")
             content_type = response.headers.get("Content-Type", "")
 
             if "application/json" in content_type.lower():
@@ -126,9 +160,6 @@ def stream_agent_response(
             for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
                 if chunk:
                     yield chunk
-    except requests.HTTPError as exc:
-        _LOGGER.error("Streaming agent API returned HTTP %s", exc.response.status_code)
-        raise RuntimeError(f"Agent API error {exc.response.status_code}: {exc.response.text}") from exc
     except requests.RequestException as exc:
         _LOGGER.error("Streaming agent API request failed: %s", exc)
         raise RuntimeError(f"Agent API request failed: {exc}") from exc

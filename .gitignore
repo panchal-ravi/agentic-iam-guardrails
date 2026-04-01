@@ -55,6 +55,8 @@ secrets.*
 *.crt
 *.pfx
 *.p12
+infra/config/edr/k8sosquery-values.yaml
+infra/config/edr/kubequery-values.yaml
 
 *license*.*
 *scratch.md

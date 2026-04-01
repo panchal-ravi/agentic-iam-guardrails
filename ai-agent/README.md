@@ -111,7 +111,7 @@ The Dockerfile works with both regular `docker build` and `docker buildx` multi-
 From the `ai-agent` directory, a normal local build still works:
 
 ```bash
-docker build -t ai-agent .
+docker build -t agentguard-ai-agent .
 ```
 
 To build a specific architecture locally with Buildx and load it into your local Docker image store:
@@ -119,7 +119,7 @@ To build a specific architecture locally with Buildx and load it into your local
 ```bash
 docker buildx build \
   --platform linux/amd64 \
-  -t ai-agent:amd64 \
+  -t agentguard-ai-agent:amd64 \
   --load \
   .
 ```
@@ -129,7 +129,7 @@ To build and publish a multi-architecture image manifest for both `linux/amd64` 
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t your-registry/ai-agent:latest \
+  -t your-registry/agentguard-ai-agent:latest \
   --push \
   .
 ```
@@ -154,7 +154,7 @@ docker run --rm \
   -e TOKEN_EXCHANGE_URL="http://host.docker.internal:8080/v1/identity/obo-token" \
   -e ACTOR_TOKEN_PATH="/run/secrets/actor-token" \
   -v "$(pwd)/.local/actor-token:/run/secrets/actor-token:ro" \
-  ai-agent
+  agentguard-ai-agent
 ```
 
 If `host.docker.internal` is not available on your platform, point `TOKEN_EXCHANGE_URL` at a reachable host or service name instead.
@@ -162,7 +162,7 @@ If `host.docker.internal` is not available on your platform, point `TOKEN_EXCHAN
 If you built an architecture-specific image with Buildx, you can also select the runtime platform explicitly:
 
 ```bash
-docker run --rm --platform linux/amd64 -p 8000:8000 ai-agent:amd64
+docker run --rm --platform linux/amd64 -p 8000:8000 agentguard-ai-agent:amd64
 ```
 
 ## Deploy on Kubernetes

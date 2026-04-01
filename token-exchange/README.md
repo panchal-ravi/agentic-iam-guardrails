@@ -110,13 +110,13 @@ The Docker build installs only third-party dependencies into `/app/.venv` in the
 
 ```bash
 # Build for the current host platform
-docker build -t identity-broker .
+docker build -t agentguard-token-exchange .
 
 # Run with OBO exchange enabled
 docker run -p 8080:8080 \
   -e IDENTITY_BROKER_VERIFY_BASE_URL="https://tenant.verify.ibm.com" \
   -e IDENTITY_BROKER_OBO_CLIENT_ID="<redacted-obo-client-id>" \
-  identity-broker
+  agentguard-token-exchange
 
 # Override host/port
 docker run -p 9090:9090 \
@@ -124,7 +124,7 @@ docker run -p 9090:9090 \
   -e UVICORN_PORT=9090 \
   -e IDENTITY_BROKER_VERIFY_BASE_URL="https://tenant.verify.ibm.com" \
   -e IDENTITY_BROKER_OBO_CLIENT_ID="<redacted-obo-client-id>" \
-  identity-broker
+  agentguard-token-exchange
 ```
 
 #### Multi-platform build (arm64 + amd64)
@@ -139,13 +139,13 @@ docker buildx inspect --bootstrap
 # Build and push a multi-arch image to a registry
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t <registry>/<image>:<tag> \
+  -t <registry>/agentguard-token-exchange:<tag> \
   --push .
 
 # Build locally for a specific target platform (no push)
 docker buildx build \
   --platform linux/arm64 \
-  -t identity-broker:arm64 \
+  -t agentguard-token-exchange:arm64 \
   --load .
 ```
 
@@ -181,7 +181,7 @@ spec:
     spec:
       containers:
         - name: token-exchange
-          image: <registry>/<image>:<tag>
+          image: <registry>/agentguard-token-exchange:<tag>
           ports:
             - containerPort: 8080
           env:

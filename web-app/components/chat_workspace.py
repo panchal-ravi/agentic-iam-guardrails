@@ -145,6 +145,30 @@ def _render_message_content(role: str, content: str) -> None:
     st.markdown(_normalize_message_content(content))
 
 
+def _render_thinking_indicator(placeholder) -> None:
+    """Render an animated thinking state while the assistant response is pending."""
+    placeholder.markdown(
+        """
+        <div class="premium-thinking" role="status" aria-live="polite" aria-label="Assistant is thinking">
+            <span class="premium-thinking__spinner" aria-hidden="true">
+                <span>⠋</span>
+                <span>⠙</span>
+                <span>⠹</span>
+                <span>⠸</span>
+                <span>⠼</span>
+                <span>⠴</span>
+                <span>⠦</span>
+                <span>⠧</span>
+                <span>⠇</span>
+                <span>⠏</span>
+            </span>
+            <span class="premium-thinking__label">Thinking</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _mount_enter_to_send_handler() -> None:
     """Bind Enter-to-send on the chat textarea while preserving Shift+Enter for newlines."""
     components.html(
@@ -295,6 +319,7 @@ def _stream_assistant_response(user_input: str) -> None:
     with st.chat_message("assistant", avatar="🔷"):
         response_placeholder = st.empty()
         response_chunks: list[str] = []
+        _render_thinking_indicator(response_placeholder)
 
         try:
             for chunk in stream_agent_response(

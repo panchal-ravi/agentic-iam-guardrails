@@ -19,6 +19,19 @@ module "common" {
   cluster_service_cidr = var.aws_eks_cluster_service_cidr
 }
 
+module "edr" {
+  source = "./modules/edr"
+
+  deployment_id          = local.deployment_id
+  enable_k8sosquery      = var.enable_k8sosquery
+  enable_kubequery       = var.enable_kubequery
+  k8sosquery_values_path = "${path.root}/config/edr/k8sosquery-values.yaml"
+  kubequery_values_path  = "${path.root}/config/edr/kubequery-values.yaml"
+
+  depends_on = [
+    module.common,
+  ]
+}
 module "servers" {
   source               = "./modules/servers"
   deployment_id        = local.deployment_id
@@ -38,7 +51,7 @@ module "servers" {
 }
 
 module "consul_client_k8s" {
-  source = "./modules/consul-client-k8s"
+  source             = "./modules/consul-client-k8s"
   cluster_endpoint   = module.common.eks_cluster_endpoint
   consul_ca_crt      = module.servers.consul_ca_crt
   consul_license     = file("${path.root}/config/consul_license.hclic")
@@ -54,6 +67,7 @@ module "consul_client_k8s" {
     module.servers,
   ]
 }
+
 
 module "clients" {
   source               = "./modules/clients"
@@ -77,8 +91,8 @@ module "clients" {
 }
 
 module "workload-identity" {
-  source            = "./modules/workload_identity"
-  elb               = module.common.elb
-  identity_claims   = var.identity_claims
-  nomad_ca_crt      = module.servers.nomad_ca_crt
+  source          = "./modules/workload_identity"
+  elb             = module.common.elb
+  identity_claims = var.identity_claims
+  nomad_ca_crt    = module.servers.nomad_ca_crt
 }

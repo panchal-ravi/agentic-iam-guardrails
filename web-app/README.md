@@ -154,7 +154,7 @@ The app will be available at [http://localhost:8501](http://localhost:8501).
 ### Build for a single platform (local)
 
 ```bash
-docker build -t vault-verify-weblatest .
+docker build -t agentguard-web-app .
 ```
 
 ### Multi-arch build (linux/amd64 + linux/arm64)
@@ -171,7 +171,7 @@ Build and push to a registry in one step:
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t <registry>/<image>:<tag> \
+  -t <registry>/agentguard-web-app:<tag> \
   --push \
   .
 ```
@@ -181,7 +181,7 @@ To build locally without pushing (useful for testing):
 ```bash
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
-  -t vault-verify-web:latest \
+  -t agentguard-web-app:latest \
   --load \
   .
 ```
@@ -195,7 +195,7 @@ Pass environment variables via a file or individual `-e` flags:
 ```bash
 docker run --rm -p 8501:8501 \
   --env-file .env \
-  vault-verify-web:latest
+  agentguard-web-app:latest
 ```
 
 The app will be available at [http://localhost:8501](http://localhost:8501).
@@ -211,9 +211,9 @@ Use a Kubernetes `Secret` to carry the application `.env` and mount it into the 
 ### 1. Create the Secret from `.env`
 
 ```bash
-kubectl create namespace vault-verify-web
+kubectl create namespace agentguard-web-app
 
-kubectl -n vault-verify-web create secret generic vault-verify-web-env \
+kubectl -n agentguard-web-app create secret generic agentguard-web-app-env \
   --from-file=.env=.env
 ```
 
@@ -225,8 +225,8 @@ When deploying through Consul-integrated platform components, the workload needs
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: vault-verify-web
-  namespace: vault-verify-web
+  name: agentguard-web-app
+  namespace: agentguard-web-app
 ```
 
 ### 3. Deploy the application
@@ -237,21 +237,21 @@ This base deployment mounts the secret as a file and binds the pod to the servic
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vault-verify-web
-  namespace: vault-verify-web
+  name: agentguard-web-app
+  namespace: agentguard-web-app
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: vault-verify-web
+      app: agentguard-web-app
   template:
     metadata:
       labels:
-        app: vault-verify-web
+        app: agentguard-web-app
     spec:
-      serviceAccountName: vault-verify-web
+      serviceAccountName: agentguard-web-app
       containers:
-        - name: vault-verify-web
+        - name: agentguard-web-app
           image: <registry>/<image>:<tag>
           ports:
             - containerPort: 8501
@@ -263,7 +263,7 @@ spec:
       volumes:
         - name: app-env
           secret:
-            secretName: vault-verify-web-env
+            secretName: agentguard-web-app-env
             items:
               - key: .env
                 path: .env
@@ -271,11 +271,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: vault-verify-web
-  namespace: vault-verify-web
+  name: agentguard-web-app
+  namespace: agentguard-web-app
 spec:
   selector:
-    app: vault-verify-web
+    app: agentguard-web-app
   ports:
     - name: http
       port: 8501
@@ -285,11 +285,11 @@ spec:
 If your deployment platform uses a higher-level base deployment spec with `volumeMapping`, configure the same secret-backed file mount there:
 
 ```yaml
-serviceAccountName: vault-verify-web
+serviceAccountName: agentguard-web-app
 volumes:
   - name: app-env
     secret:
-      secretName: vault-verify-web-env
+      secretName: agentguard-web-app-env
       items:
         - key: .env
           path: .env
@@ -300,10 +300,10 @@ volumeMapping:
     readOnly: true
 ```
 
-Save the `ServiceAccount` plus the `Deployment` and `Service` manifests to `vault-verify-web-k8s.yaml`, then apply them:
+Save the `ServiceAccount` plus the `Deployment` and `Service` manifests to `agentguard-web-app-k8s.yaml`, then apply them:
 
 ```bash
-kubectl apply -f vault-verify-web-k8s.yaml
+kubectl apply -f agentguard-web-app-k8s.yaml
 ```
 
 > **Redirect URI reminder:** Set `IBM_VERIFY_REDIRECT_URI` in the mounted `.env` to the externally reachable URL for your Kubernetes deployment.

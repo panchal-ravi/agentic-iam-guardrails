@@ -344,9 +344,9 @@ h1, h2, h3, h4, h5, h6 {
   font-size: clamp(3rem, 5vw, 5.7rem);
   line-height: 0.96;
   letter-spacing: -0.06em;
-  max-width: 11ch;
+  max-width: 16ch;
   margin: 0 0 18px;
-  text-wrap: balance;
+  text-wrap: pretty;
   word-break: normal;
   overflow-wrap: normal;
   hyphens: none;
@@ -434,6 +434,95 @@ h1, h2, h3, h4, h5, h6 {
   padding: 16px 20px;
   margin-bottom: 14px;
   color: var(--text-secondary);
+}
+
+.premium-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 34px;
+  padding: 4px 0;
+}
+
+.premium-thinking__spinner {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 1.2rem;
+  line-height: 1;
+  color: transparent;
+  isolation: isolate;
+}
+
+.premium-thinking__spinner span {
+  grid-area: 1 / 1;
+  opacity: 0;
+  transform: scale(0.94);
+  background-image: linear-gradient(90deg, #5b8cff 0%, #8d72ff 34%, #46d5ff 68%, #8df0ff 100%);
+  background-size: 240% 100%;
+  background-position: 0% 50%;
+  background-repeat: repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation-name: premium-thinking-spinner-frame, premium-thinking-gradient;
+  animation-duration: 1.1s, 1.4s;
+  animation-timing-function: linear, linear;
+  animation-iteration-count: infinite, infinite;
+  animation-fill-mode: both, both;
+}
+
+.premium-thinking__spinner span:nth-child(1) { animation-delay: calc(-0.99s), -0.1s; }
+.premium-thinking__spinner span:nth-child(2) { animation-delay: calc(-0.88s), -0.2s; }
+.premium-thinking__spinner span:nth-child(3) { animation-delay: calc(-0.77s), -0.3s; }
+.premium-thinking__spinner span:nth-child(4) { animation-delay: calc(-0.66s), -0.4s; }
+.premium-thinking__spinner span:nth-child(5) { animation-delay: calc(-0.55s), -0.5s; }
+.premium-thinking__spinner span:nth-child(6) { animation-delay: calc(-0.44s), -0.6s; }
+.premium-thinking__spinner span:nth-child(7) { animation-delay: calc(-0.33s), -0.7s; }
+.premium-thinking__spinner span:nth-child(8) { animation-delay: calc(-0.22s), -0.8s; }
+.premium-thinking__spinner span:nth-child(9) { animation-delay: calc(-0.11s), -0.9s; }
+.premium-thinking__spinner span:nth-child(10) { animation-delay: 0s, -1s; }
+
+.premium-thinking__label {
+  display: inline-block;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background-image: linear-gradient(90deg, #dce7ff 0%, #8fb5ff 20%, #b09bff 42%, #5fe1ff 64%, #7cf7c8 82%, #eff6ff 100%);
+  background-size: 260% 100%;
+  background-position: 0% 50%;
+  background-repeat: repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: premium-thinking-gradient 1.9s linear infinite;
+}
+
+@keyframes premium-thinking-spinner-frame {
+  0%, 8.9%, 100% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  9%, 10.9% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes premium-thinking-gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 100% 50%;
+  }
 }
 
 .premium-chat-stage {
@@ -567,5 +656,17 @@ h1, h2, h3, h4, h5, h6 {
   .premium-note-card,
   .premium-chat-header {
     will-change: transform;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .premium-thinking__spinner span,
+  .premium-thinking__label {
+    animation: none !important;
+  }
+
+  .premium-thinking__spinner span:first-child {
+    opacity: 1;
+    transform: scale(1);
   }
 }
