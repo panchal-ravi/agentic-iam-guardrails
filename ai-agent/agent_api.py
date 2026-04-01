@@ -6,21 +6,28 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import init_chat_model
 
 from agent_runtime import AgentRuntime
 from config import Settings, load_settings
 from errors import AppError
 from identity import OboTokenService
 from logging_utils import log_event
-from models import ChatRequest
+from models import AgentTokensResponse, ChatRequest
 from security import extract_bearer_token, validate_access_token
 from tools import TOOLS
 
 SETTINGS = load_settings()
 LOGGER = logging.getLogger("agent_api")
-llm = ChatOpenAI(model=SETTINGS.openai_model, streaming=True)
-llm_with_tools = llm.bind_tools(TOOLS)
+
+
+def _build_agent_runtime(settings: Settings) -> AgentRuntime:
+    llm = init_chat_model(settings.model, streaming=True)
+    return AgentRuntime(
+        llm=llm,
+        llm_with_tools=llm.bind_tools(TOOLS),
+        logger=LOGGER,
+    )
 
 
 def _error_response(request: Request, status_code: int, error: str, message: str) -> JSONResponse:
@@ -49,11 +56,7 @@ def create_app(
     active_settings = settings or SETTINGS
     app = FastAPI()
     app.state.settings = active_settings
-    app.state.agent_runtime = runtime or AgentRuntime(
-        llm=llm,
-        llm_with_tools=llm_with_tools,
-        logger=LOGGER,
-    )
+    app.state.agent_runtime = runtime or _build_agent_runtime(active_settings)
     app.state.token_service = token_service or OboTokenService(
         settings=active_settings,
         logger=LOGGER,
@@ -112,18 +115,38 @@ def create_app(
 
     @app.post("/v1/agent/query")
     async def query_agent(request: Request, chat_request: ChatRequest):
-        access_token = extract_bearer_token(request)
-        validate_access_token(access_token)
-        obo_token = request.app.state.token_service.resolve_token(
-            access_token,
-            request.state.request_id,
-        )
+        obo_token: str | None = None
+        if not request.app.state.settings.bypass_auth_token_exchange:
+            access_token = extract_bearer_token(request)
+            validate_access_token(access_token)
+            obo_token = request.app.state.token_service.resolve_token(
+                access_token,
+                request.state.request_id,
+            )
         return request.app.state.agent_runtime.handle_request(
             chat_request=chat_request,
             obo_token=obo_token,
             request_id=request.state.request_id,
             request_path=request.url.path,
         )
+
+    @app.get("/v1/agent/tokens", response_model=AgentTokensResponse)
+    async def get_cached_tokens(request: Request) -> AgentTokensResponse:
+        if request.app.state.settings.bypass_auth_token_exchange:
+            raise AppError(
+                status_code=404,
+                error="token_not_found",
+                message="No cached OBO token found for the provided bearer token.",
+            )
+
+        access_token = extract_bearer_token(request)
+        validate_access_token(access_token)
+        obo_token = request.app.state.token_service.get_cached_token(
+            access_token,
+            request.state.request_id,
+        )
+        actor_token = request.app.state.token_service.read_actor_token()
+        return AgentTokensResponse(obo_token=obo_token, actor_token=actor_token)
 
     return app
 

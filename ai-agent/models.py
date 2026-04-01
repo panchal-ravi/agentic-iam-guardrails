@@ -10,3 +10,8 @@ class Message(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: List[Message]
+
+
+class AgentTokensResponse(BaseModel):
+    obo_token: str
+    actor_token: str

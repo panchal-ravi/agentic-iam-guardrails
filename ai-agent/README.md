@@ -1,6 +1,6 @@
 # AI Agent
 
-This service is a FastAPI-based AI agent runtime. It accepts chat messages, validates a bearer token, exchanges that token for an on-behalf-of (OBO) token, optionally invokes local tools through LangChain, and streams plain-text responses back to the caller.
+This service is a FastAPI-based AI agent runtime. It accepts chat messages, validates a bearer token, exchanges that token for an on-behalf-of (OBO) token, optionally invokes local tools through LangChain, and streams plain-text responses back to the caller. For test environments, an env flag can bypass the incoming bearer-token requirement and skip OBO token exchange entirely.
 
 ## Current project structure
 
@@ -26,19 +26,31 @@ ai-agent/
 
 ## Architecture
 
-The application has one public endpoint:
+The application has two public endpoints:
 
 - `POST /v1/agent/query`
+- `GET /v1/agent/tokens`
 
 High-level request flow:
 
 1. FastAPI receives the request and assigns a request ID.
-2. The `Authorization: Bearer ...` header is validated.
+2. The `Authorization: Bearer ...` header is validated unless bypass mode is enabled.
 3. The actor token is read from `ACTOR_TOKEN_PATH`.
-4. The service exchanges the incoming bearer token for an OBO token through `TOKEN_EXCHANGE_URL`.
+4. The service exchanges the incoming bearer token for an OBO token through `TOKEN_EXCHANGE_URL`, unless bypass mode is enabled.
 5. OBO tokens are cached in memory until expiry.
 6. LangChain binds the available tools and runs the agent flow.
 7. The response is streamed back as `text/plain`.
+
+The token lookup endpoint validates the incoming `Authorization: Bearer ...` header, derives the same cache key from the access token and configured role name, and returns both the cached OBO token and the agent actor token without triggering a new token exchange.
+
+`GET /v1/agent/tokens` returns JSON in this shape:
+
+```json
+{
+  "obo_token": "eyJ...",
+  "actor_token": "eyJ..."
+}
+```
 
 ## Available tools
 
@@ -53,15 +65,18 @@ The service reads environment variables from the process environment and also lo
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | none | OpenAI API key used by `langchain-openai` |
-| `OPENAI_MODEL` | `gpt-5-mini` | Chat model name |
+| `LANGCHAIN_MODEL` | `openai:gpt-5-mini` | Provider-qualified chat model string passed to LangChain, for example `openai:gpt-5-mini` |
+| `OPENAI_API_KEY` | none | OpenAI API key when using an OpenAI-backed `LANGCHAIN_MODEL` |
 | `ACTOR_TOKEN_PATH` | `/vault/secrets/actor-token` | Filesystem path to the actor token |
 | `TOKEN_EXCHANGE_URL` | `http://localhost:8080/v1/identity/obo-token` | OBO token exchange endpoint |
 | `TOKEN_EXCHANGE_TIMEOUT_SECONDS` | `10` | Token exchange timeout |
 | `OBO_ROLE_NAME` | `agent-runtime` | Cache key input for OBO token reuse |
+| `BYPASS_AUTH_TOKEN_EXCHANGE` | `false` | When `true`, `/v1/agent/query` does not require `Authorization` and skips OBO token exchange; `/v1/agent/tokens` will not return cached tokens |
 | `HOST` | `0.0.0.0` | Bind host |
 | `PORT` | `8000` | Bind port |
 | `LOG_LEVEL` | `INFO` | Logging level |
+
+`BYPASS_AUTH_TOKEN_EXCHANGE` is intended for local or test environments where the Agent API should run without security integration. When set to `true`, `POST /v1/agent/query` accepts requests without an `Authorization: Bearer ...` header, skips bearer-token validation, and does not call the token-exchange service. In the same mode, `GET /v1/agent/tokens` returns `404` because no OBO token is exchanged or cached. The default is `false`, which preserves the normal secure flow.
 
 ## Local development with uv
 
@@ -94,6 +109,7 @@ printf 'actor-token\n' > .local/actor-token
 export OPENAI_API_KEY="your-openai-api-key"
 export ACTOR_TOKEN_PATH="$(pwd)/.local/actor-token"
 export TOKEN_EXCHANGE_URL="http://localhost:8080/v1/identity/obo-token"
+export BYPASS_AUTH_TOKEN_EXCHANGE="false"
 export HOST="0.0.0.0"
 export PORT="8000"
 ```
@@ -153,6 +169,7 @@ docker run --rm \
   -e OPENAI_API_KEY="your-openai-api-key" \
   -e TOKEN_EXCHANGE_URL="http://host.docker.internal:8080/v1/identity/obo-token" \
   -e ACTOR_TOKEN_PATH="/run/secrets/actor-token" \
+  -e BYPASS_AUTH_TOKEN_EXCHANGE="false" \
   -v "$(pwd)/.local/actor-token:/run/secrets/actor-token:ro" \
   agentguard-ai-agent
 ```
@@ -186,10 +203,11 @@ Create an env file such as `.env.k8s`:
 ```bash
 cat > .env.k8s <<'EOF'
 OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL=gpt-5-mini
+LANGCHAIN_MODEL=openai:gpt-5-mini
 TOKEN_EXCHANGE_URL=http://identity-service.ai-agent.svc.cluster.local:8080/v1/identity/obo-token
 TOKEN_EXCHANGE_TIMEOUT_SECONDS=10
 OBO_ROLE_NAME=agent-runtime
+BYPASS_AUTH_TOKEN_EXCHANGE=false
 HOST=0.0.0.0
 PORT=8000
 LOG_LEVEL=INFO
@@ -315,6 +333,17 @@ curl -N \
   }'
 ```
 
+### Retrieve cached agent tokens
+
+After a successful `POST /v1/agent/query` call for the same bearer token, fetch the cached OBO token together with the actor token:
+
+```bash
+curl http://localhost:8000/v1/agent/tokens \
+  -H "Authorization: Bearer ${TEST_BEARER_TOKEN}"
+```
+
+Expected result: `200` with a JSON body containing both `obo_token` and `actor_token`.
+
 ### Manual negative tests
 
 Missing bearer token:
@@ -326,6 +355,15 @@ curl -X POST http://localhost:8000/v1/agent/query \
 ```
 
 Expected result: `401` with `Authorization bearer token is required.`
+
+Cache miss on the token lookup endpoint:
+
+```bash
+curl http://localhost:8000/v1/agent/tokens \
+  -H "Authorization: Bearer ${TEST_BEARER_TOKEN}"
+```
+
+Expected result: `404` with `No cached OBO token found for the provided bearer token.`
 
 Expired bearer token:
 

@@ -49,7 +49,7 @@ class AgentRuntime:
     def handle_request(
         self,
         chat_request: ChatRequest,
-        obo_token: str,
+        obo_token: str | None,
         request_id: str,
         request_path: str,
     ) -> StreamingResponse:
@@ -125,7 +125,9 @@ def _extract_text(content: object) -> str:
     return ""
 
 
-def _build_downstream_headers(obo_token: str) -> dict[str, str]:
+def _build_downstream_headers(obo_token: str | None) -> dict[str, str]:
+    if not obo_token:
+        return {}
     return {"Authorization": f"Bearer {obo_token}"}
 
 

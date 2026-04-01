@@ -61,7 +61,7 @@ uv run uvicorn ai_guardrails_api:app --host 0.0.0.0 --port "${PORT}"
 Build the image from the `watsonx_governance` directory:
 
 ```bash
-docker build -t agentguard-wx-gov-api .
+docker build -t watsonx-governance-api .
 ```
 
 Run the container with your environment file:
@@ -71,7 +71,7 @@ docker run --rm \
   --env-file .env \
   -e PORT=8000 \
   -p 8000:8000 \
-  <registry>/agentguard-wx-gov-api:latest
+  panchalravi/watsonx-governance-api:latest
 ```
 
 To run on a different port, keep the container port and `PORT` value aligned:
@@ -81,7 +81,7 @@ docker run --rm \
   --env-file .env \
   -e PORT=9000 \
   -p 9000:9000 \
-  agentguard-wx-gov-api
+  watsonx-governance-api
 ```
 
 ## Multi-arch image build
@@ -91,7 +91,7 @@ The project Dockerfile uses the multi-arch `python:3.12-slim` base image, so you
 ```bash
 docker buildx build \
   --platform linux/amd64 \
-  -t <registry>/agentguard-wx-gov-api:latest \
+  -t panchalravi/watsonx-governance-api:latest \
   --push \
   .
 ```
@@ -132,7 +132,7 @@ curl -v -X POST http://localhost:8000/mask \
   -d "\"${TEXT_B64}\""
 ```
 
-Example response (returns plain text string):
+Example response (returns a plain text string; if no PII is detected, the original text is returned unchanged):
 
 ```text
 "My email is <EMAIL_ADDRESS>"

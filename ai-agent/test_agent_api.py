@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 os.environ.setdefault("OPENAI_API_KEY", "test-key")
+os.environ.setdefault("LANGCHAIN_MODEL", "openai:gpt-5-mini")
 
 import agent_api
 import identity
@@ -54,6 +55,11 @@ class FakeTool:
         return self.output
 
 
+class FakeBoundLLM(FakeStreamingLLM):
+    def bind_tools(self, tools):
+        return FakeToolBoundLLM()
+
+
 def _jwt_with_expiry(offset_seconds: int) -> str:
     header = base64.urlsafe_b64encode(
         json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode(
@@ -78,6 +84,7 @@ def isolate_runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(agent_api.SETTINGS, "actor_token_path", actor_token_path)
     monkeypatch.setattr(agent_api.SETTINGS, "token_exchange_url", "http://token-exchange.local/obo")
     monkeypatch.setattr(agent_api.SETTINGS, "obo_role_name", "test-role")
+    monkeypatch.setattr(agent_api.SETTINGS, "bypass_auth_token_exchange", False)
 
     agent_api.app.state.settings = agent_api.SETTINGS
     agent_api.app.state.agent_runtime = AgentRuntime(
@@ -127,6 +134,43 @@ def test_expired_bearer_token_is_rejected(monkeypatch):
         "error": "invalid_token",
         "message": "Bearer token has expired.",
     }
+
+
+def test_bypass_mode_allows_request_without_authorization(monkeypatch):
+    client = TestClient(agent_api.app)
+    monkeypatch.setattr(agent_api.app.state.settings, "bypass_auth_token_exchange", True)
+
+    def fail_exchange(*args, **kwargs):
+        raise AssertionError("Token exchange should not run when bypass mode is enabled.")
+
+    monkeypatch.setattr(agent_api.app.state.token_service, "resolve_token", fail_exchange)
+
+    response = client.post(
+        "/v1/agent/query",
+        json={"messages": [{"role": "user", "content": "hello"}]},
+    )
+
+    assert response.status_code == 200
+    assert response.text == "streamed output"
+
+
+def test_bypass_mode_ignores_invalid_authorization_header(monkeypatch):
+    client = TestClient(agent_api.app)
+    monkeypatch.setattr(agent_api.app.state.settings, "bypass_auth_token_exchange", True)
+
+    def fail_exchange(*args, **kwargs):
+        raise AssertionError("Token exchange should not run when bypass mode is enabled.")
+
+    monkeypatch.setattr(agent_api.app.state.token_service, "resolve_token", fail_exchange)
+
+    response = client.post(
+        "/v1/agent/query",
+        headers={"Authorization": "Basic not-a-bearer-token"},
+        json={"messages": [{"role": "user", "content": "hello"}]},
+    )
+
+    assert response.status_code == 200
+    assert response.text == "streamed output"
 
 
 def test_old_chat_route_is_removed():
@@ -219,6 +263,64 @@ def test_obo_token_is_cached_between_requests(monkeypatch):
     assert first_response.text == "streamed output"
     assert second_response.text == "streamed output"
     assert len(exchange_calls) == 1
+
+
+def test_cached_tokens_can_be_retrieved_via_endpoint(monkeypatch):
+    client = TestClient(agent_api.app)
+    access_token = _jwt_with_expiry(300)
+    obo_token = _jwt_with_expiry(600)
+    exchange_calls = []
+
+    def fake_exchange(subject_token, actor_token, request_id):
+        exchange_calls.append(
+            {
+                "subject_token": subject_token,
+                "actor_token": actor_token,
+                "request_id": request_id,
+            }
+        )
+        return obo_token, time.time() + 600
+
+    monkeypatch.setattr(agent_api.app.state.token_service, "perform_token_exchange", fake_exchange)
+
+    query_response = client.post(
+        "/v1/agent/query",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"messages": [{"role": "user", "content": "hello"}]},
+    )
+    token_response = client.get(
+        "/v1/agent/tokens",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert query_response.status_code == 200
+    assert token_response.status_code == 200
+    assert token_response.json() == {
+        "obo_token": obo_token,
+        "actor_token": "actor-token",
+    }
+    assert len(exchange_calls) == 1
+
+
+def test_tokens_endpoint_returns_404_on_cache_miss(monkeypatch):
+    client = TestClient(agent_api.app)
+    access_token = _jwt_with_expiry(300)
+
+    def fail_exchange(*args, **kwargs):
+        raise AssertionError("Token exchange should not run for cache lookup endpoint.")
+
+    monkeypatch.setattr(agent_api.app.state.token_service, "perform_token_exchange", fail_exchange)
+
+    response = client.get(
+        "/v1/agent/tokens",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "error": "token_not_found",
+        "message": "No cached OBO token found for the provided bearer token.",
+    }
 
 
 def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch):
@@ -379,3 +481,34 @@ def test_shell_tool_result_is_logged(monkeypatch, caplog):
     assert tool_result_logs[-1]["exit_code"] == 0
     assert tool_result_logs[-1]["stdout_length"] > 0
     assert tool_result_logs[-1]["stderr_length"] == 0
+
+
+def test_create_app_builds_runtime_from_configured_model(monkeypatch):
+    captured = {}
+
+    def fake_init_chat_model(model, **kwargs):
+        captured["model"] = model
+        captured["kwargs"] = kwargs
+        return FakeBoundLLM()
+
+    monkeypatch.setattr(agent_api, "init_chat_model", fake_init_chat_model)
+
+    app = agent_api.create_app(
+        settings=agent_api.Settings(
+            model="openai:gpt-5.4-mini",
+            actor_token_path=agent_api.SETTINGS.actor_token_path,
+            token_exchange_url=agent_api.SETTINGS.token_exchange_url,
+            token_exchange_timeout_seconds=agent_api.SETTINGS.token_exchange_timeout_seconds,
+            obo_role_name=agent_api.SETTINGS.obo_role_name,
+            bypass_auth_token_exchange=agent_api.SETTINGS.bypass_auth_token_exchange,
+            host=agent_api.SETTINGS.host,
+            port=agent_api.SETTINGS.port,
+            log_level=agent_api.SETTINGS.log_level,
+        )
+    )
+
+    assert captured == {
+        "model": "openai:gpt-5.4-mini",
+        "kwargs": {"streaming": True},
+    }
+    assert isinstance(app.state.agent_runtime, AgentRuntime)

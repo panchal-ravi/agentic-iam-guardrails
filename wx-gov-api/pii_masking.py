@@ -221,11 +221,7 @@ def get_nested_value(payload: dict[str, Any], path: tuple[str, ...]) -> Any:
 def extract_masked_text(response: dict[str, Any], original_text: str) -> str:
     candidate = get_nested_value(response, ("entity", "text"))
     if isinstance(candidate, str):
-        if candidate != original_text:
-            return candidate
-        raise RuntimeError(
-            "Guardrail enforcement returned entity.text, but it was not masked."
-        )
+        return candidate
 
     raise RuntimeError(
         "Guardrail enforcement response did not include masked text in entity.text."

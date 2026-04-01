@@ -1,11 +1,12 @@
 import base64
 import binascii
+import json
 import logging
 import os
 import uuid
 
 from dotenv import load_dotenv
-from fastapi import Body, FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 
 from pydantic import BaseModel
 
@@ -39,6 +40,26 @@ def decode_base64_text(encoded_text: str) -> str:
         ) from exc
 
 
+def parse_encoded_text_payload(body: bytes) -> str:
+    try:
+        payload = body.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("Request body must be valid UTF-8.") from exc
+
+    if not payload.strip():
+        raise ValueError("Request body must contain a base64-encoded UTF-8 string.")
+
+    try:
+        parsed_payload = json.loads(payload)
+    except json.JSONDecodeError:
+        return payload.strip()
+
+    if not isinstance(parsed_payload, str):
+        raise ValueError("Request body must contain a base64-encoded UTF-8 string.")
+
+    return parsed_payload.strip()
+
+
 def guardrail_response(text: str, request_id: str, client_ip: str) -> GuardRailResponse:
     metric_scores = evaluate_text_metrics(text)
     logger.info(
@@ -70,10 +91,9 @@ def guardrail_response(text: str, request_id: str, client_ip: str) -> GuardRailR
 
 
 @app.post("/evaluate")
-def evaluate(
+async def evaluate(
     response: Response,
     http_request: Request,
-    request: str = Body(..., description="Base64-encoded UTF-8 input text"),
 ):
     request_id = http_request.headers.get("x-request-id", str(uuid.uuid4()))
     response.headers["x-request-id"] = request_id
@@ -85,7 +105,8 @@ def evaluate(
     )
     logger.info("Received /evaluate request_id=%s client_ip=%s", request_id, client_ip)
     try:
-        decoded_text = decode_base64_text(request)
+        encoded_text = parse_encoded_text_payload(await http_request.body())
+        decoded_text = decode_base64_text(encoded_text)
     except ValueError as exc:
         logger.warning(
             "Invalid base64 input request_id=%s client_ip=%s", request_id, client_ip
@@ -117,9 +138,8 @@ def evaluate(
 
 
 @app.post("/mask")
-def mask(
+async def mask(
     http_request: Request,
-    request: str = Body(..., description="Base64-encoded UTF-8 input text"),
 ):
     request_id = http_request.headers.get("x-request-id", str(uuid.uuid4()))
     forwarded_for = http_request.headers.get("x-forwarded-for")
@@ -131,7 +151,8 @@ def mask(
     logger.info("Received /mask request_id=%s client_ip=%s", request_id, client_ip)
 
     try:
-        decoded_text = decode_base64_text(request)
+        encoded_text = parse_encoded_text_payload(await http_request.body())
+        decoded_text = decode_base64_text(encoded_text)
         masked_text = mask_pii_text(decoded_text)
         return masked_text
     except ValueError as exc:

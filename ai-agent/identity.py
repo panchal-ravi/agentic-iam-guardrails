@@ -241,6 +241,37 @@ class OboTokenService:
             request_id=request_id,
         )
 
+    def get_cached_token(self, subject_token: str, request_id: str) -> str:
+        cache_key = build_cache_key(subject_token, self.settings.obo_role_name)
+
+        with self.lock:
+            cached_entry = self._get_cached_token(cache_key)
+            if cached_entry is None:
+                log_event(
+                    self.logger,
+                    "token_cache_miss",
+                    request_id=request_id,
+                    cache_key=cache_key,
+                )
+                raise AppError(
+                    status_code=404,
+                    error="token_not_found",
+                    message="No cached OBO token found for the provided bearer token.",
+                )
+
+            log_event(
+                self.logger,
+                "token_cache_hit",
+                request_id=request_id,
+                cache_key=cache_key,
+                expiry_time=cached_entry.expiry_time,
+                obo_token=cached_entry.token,
+            )
+            return cached_entry.token
+
+    def read_actor_token(self) -> str:
+        return read_actor_token(self.settings.actor_token_path, self.logger)
+
     def resolve_token(self, subject_token: str, request_id: str) -> str:
         cache_key = build_cache_key(subject_token, self.settings.obo_role_name)
 

@@ -1,7 +1,7 @@
 apiVersion: consul.hashicorp.com/v1alpha1
 kind: ServiceDefaults
 metadata:
-  name: agent
+  name: ai-agent
   namespace: default
 spec:
   protocol: http
@@ -16,18 +16,21 @@ spec:
           local body_str = body:getBytes(0, body:length())
           request_handle:logInfo("wx-gov-api inbound request: " .. body_str)
 
+          local stream_info = request_handle:streamInfo()
           local dynamic_metadata = stream_info:dynamicMetadata()
           local trust_domain = nil
-          if dynamic_metadata and dynamic_metadata["consul"] then
-            local consul_ns = dynamic_metadata["consul"]
-            if type(consul_ns) == "table" and consul_ns["trust-domain"] then
-              trust_domain = tostring(consul_ns["trust-domain"])
-            end
+          local datacenter = nil
+          if dynamic_metadata and dynamic_metadata:get("consul") then
+            local consul_ns = dynamic_metadata:get("consul")
+            trust_domain = tostring(consul_ns["trust-domain"])
+            datacenter = tostring(consul_ns["datacenter"])
           end
 
-          request_handle:logInfo("Trust Domain: " .. tostring(trust_domain))
+          request_handle:logInfo("Trust Domain: " .. trust_domain)
+          request_handle:logInfo("Datacenter: " .. datacenter)
           
-          local wxg_service = "wx-gov-api.default." .. trust_domain
+          local wxg_service = "wx-gov-api.default." .. datacenter .. ".internal." .. trust_domain
+          request_handle:logInfo("wx-gov-api service: " .. wxg_service)
 
           -- Prepare wx-gov-api POST request
           local headers = {
@@ -83,13 +86,15 @@ spec:
             local body_str = body:getBytes(0, body:length())
             local dynamic_metadata = response_handle:streamInfo():dynamicMetadata()
             local trust_domain = nil
-            if dynamic_metadata and dynamic_metadata["consul"] then
-              local consul_ns = dynamic_metadata["consul"]
-              if type(consul_ns) == "table" and consul_ns["trust-domain"] then
+            local datacenter = nil
+            if dynamic_metadata and dynamic_metadata:get("consul") then
+              local consul_ns = dynamic_metadata:get("consul")
+              if type(consul_ns) == "table" then
                 trust_domain = tostring(consul_ns["trust-domain"])
+                datacenter = tostring(consul_ns["datacenter"])
               end
             end
-            local wxg_service = "wx-gov-api.default." .. trust_domain
+            local wxg_service = "wx-gov-api.default." .. datacenter .. ".internal." .. trust_domain
 
             -- Prepare wx-gov-api POST request
             local headers = {

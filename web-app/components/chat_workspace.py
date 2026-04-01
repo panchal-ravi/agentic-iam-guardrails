@@ -1,6 +1,4 @@
 """Premium split workspace for landing and chat interactions."""
-
-import json
 import re
 
 import streamlit as st
@@ -10,35 +8,13 @@ from auth.session import get_access_token, get_user_info
 from components.navbar import render_access_token_popover
 from observability import get_logger
 from services.agent_api import stream_agent_response
+from services.response_normalization import normalize_message_content
 
 LOGGER = get_logger("components.chat_workspace")
 _CHAT_VIEWPORT_HEIGHT = 560
 _EMOJI_SHORTCODE_RE = re.compile(r"(?<!\\):([a-zA-Z0-9_+\-]+):")
 _LIST_ITEM_RE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
 _MARKDOWN_BLOCK_RE = re.compile(r"^\s*(?:#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|~~~|\|)")
-
-
-def _normalize_message_content(content: str) -> str:
-    """Extract the human-readable agent reply when a JSON envelope is returned."""
-    stripped_content = content.strip()
-    if not stripped_content.startswith("{"):
-        return content
-
-    try:
-        payload = json.loads(stripped_content)
-    except json.JSONDecodeError:
-        return content
-
-    if not isinstance(payload, dict):
-        return content
-
-    return (
-        payload.get("response_text")
-        or payload.get("response")
-        or payload.get("result")
-        or payload.get("message")
-        or content
-    )
 
 
 def _escape_emoji_shortcodes(text: str) -> str:
@@ -109,7 +85,7 @@ def _looks_like_structured_text(lines: list[str]) -> bool:
 
 def _format_message_markdown(content: str) -> str:
     """Normalize assistant text into Markdown with preserved readable newlines."""
-    normalized_content = _collapse_markdown_blank_lines(_normalize_message_content(content))
+    normalized_content = _collapse_markdown_blank_lines(normalize_message_content(content))
     if not normalized_content:
         return ""
 
@@ -142,7 +118,7 @@ def _render_message_content(role: str, content: str) -> None:
         st.markdown(_format_message_markdown(content))
         return
 
-    st.markdown(_normalize_message_content(content))
+    st.markdown(normalize_message_content(content))
 
 
 def _render_thinking_indicator(placeholder) -> None:
@@ -332,18 +308,28 @@ def _stream_assistant_response(user_input: str) -> None:
                     _format_message_markdown("".join(response_chunks))
                 )
 
-            response_text = "".join(response_chunks).strip()
+            response_text = normalize_message_content("".join(response_chunks)).strip()
             st.session_state["messages"].append(
                 {"role": "assistant", "content": response_text}
             )
             LOGGER.info("Received streamed assistant response from agent API")
         except RuntimeError as exc:
             LOGGER.error("Chat submission failed: %s", exc)
-            error_msg = f"⚠️ {exc}"
-            response_placeholder.markdown(_format_message_markdown(error_msg))
-            st.session_state["messages"].append(
-                {"role": "assistant", "content": error_msg}
-            )
+            partial_response = normalize_message_content("".join(response_chunks)).strip()
+            if partial_response:
+                LOGGER.warning(
+                    "Preserving partial streamed assistant response after late error"
+                )
+                response_placeholder.markdown(_format_message_markdown(partial_response))
+                st.session_state["messages"].append(
+                    {"role": "assistant", "content": partial_response}
+                )
+            else:
+                error_msg = f"⚠️ {exc}"
+                response_placeholder.markdown(_format_message_markdown(error_msg))
+                st.session_state["messages"].append(
+                    {"role": "assistant", "content": error_msg}
+                )
 
 
 def _render_active_chat() -> None:

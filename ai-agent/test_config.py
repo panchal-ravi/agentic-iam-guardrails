@@ -8,11 +8,12 @@ from config import Settings, load_settings
 def test_load_settings_logs_all_configured_values(monkeypatch, tmp_path, caplog):
     actor_token_path = tmp_path / "actor-token"
     configured_values = {
-        "OPENAI_MODEL": "gpt-5.4",
+        "LANGCHAIN_MODEL": "openai:gpt-5.4",
         "ACTOR_TOKEN_PATH": str(actor_token_path),
         "TOKEN_EXCHANGE_URL": "https://example.test/v1/identity/obo-token",
         "TOKEN_EXCHANGE_TIMEOUT_SECONDS": "42.5",
         "OBO_ROLE_NAME": "runtime-role",
+        "BYPASS_AUTH_TOKEN_EXCHANGE": "true",
         "HOST": "127.0.0.1",
         "PORT": "9000",
         "LOG_LEVEL": "debug",
@@ -25,11 +26,12 @@ def test_load_settings_logs_all_configured_values(monkeypatch, tmp_path, caplog)
         settings = load_settings()
 
     assert settings == Settings(
-        openai_model="gpt-5.4",
+        model="openai:gpt-5.4",
         actor_token_path=Path(str(actor_token_path)),
         token_exchange_url="https://example.test/v1/identity/obo-token",
         token_exchange_timeout_seconds=42.5,
         obo_role_name="runtime-role",
+        bypass_auth_token_exchange=True,
         host="127.0.0.1",
         port=9000,
         log_level="DEBUG",
@@ -42,8 +44,9 @@ def test_load_settings_logs_all_configured_values(monkeypatch, tmp_path, caplog)
         "event": "settings_loaded",
         "host": "127.0.0.1",
         "log_level": "DEBUG",
+        "model": "openai:gpt-5.4",
+        "bypass_auth_token_exchange": True,
         "obo_role_name": "runtime-role",
-        "openai_model": "gpt-5.4",
         "port": 9000,
         "timestamp": payload["timestamp"],
         "token_exchange_timeout_seconds": 42.5,

@@ -6,6 +6,7 @@ import requests
 
 from config import AI_AGENT_API_URL
 from observability import build_outbound_headers, get_logger
+from services.response_normalization import normalize_message_content
 
 _LOGGER = get_logger("services.agent_api")
 _AGENT_BASE_URL = AI_AGENT_API_URL
@@ -35,7 +36,7 @@ def _extract_agent_response(response: requests.Response) -> dict:
     try:
         data = response.json()
     except requests.JSONDecodeError:
-        response_text = response.text.strip()
+        response_text = normalize_message_content(response.text).strip()
         if not response_text:
             raise RuntimeError("Agent API returned an empty response.")
 
@@ -55,9 +56,12 @@ def _extract_agent_response(response: requests.Response) -> dict:
         )
         if not response_text:
             response_text = str(data)
-        return {"response": response_text, "obo_token": data.get("obo_token", "")}
+        return {
+            "response": normalize_message_content(str(response_text)),
+            "obo_token": data.get("obo_token", ""),
+        }
 
-    return {"response": str(data), "obo_token": ""}
+    return {"response": normalize_message_content(str(data)), "obo_token": ""}
 
 
 def _extract_error_body(response: requests.Response) -> str:
@@ -93,6 +97,20 @@ def _raise_agent_http_error(response: requests.Response, log_message: str) -> No
         raise RuntimeError(f"Agent API error {response.status_code}: {error_body}")
 
     raise RuntimeError(f"Agent API error {response.status_code}")
+
+
+def _is_premature_stream_end(exc: requests.RequestException) -> bool:
+    """Return whether the streaming transport closed after sending partial content."""
+    return "Response ended prematurely" in str(exc)
+
+
+def _split_stream_buffer(buffer: str) -> tuple[str, str]:
+    """Return the decodable prefix and any trailing partial escape sequence."""
+    trailing_backslashes = len(buffer) - len(buffer.rstrip("\\"))
+    if trailing_backslashes % 2 == 0:
+        return buffer, ""
+
+    return buffer[:-1], buffer[-1]
 
 
 def invoke_agent(message: str, history: list, access_token: str = "") -> dict:
@@ -157,9 +175,31 @@ def stream_agent_response(
                 yield _extract_agent_response(response)["response"]
                 return
 
-            for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
-                if chunk:
-                    yield chunk
+            streamed_chunks = 0
+            pending_escape = ""
+            try:
+                for chunk in response.iter_content(chunk_size=None, decode_unicode=True):
+                    if chunk:
+                        streamed_chunks += 1
+                        pending_escape += chunk
+                        decodable_text, pending_escape = _split_stream_buffer(pending_escape)
+                        if not decodable_text:
+                            continue
+
+                        yield normalize_message_content(decodable_text)
+
+                if pending_escape:
+                    yield normalize_message_content(pending_escape)
+            except requests.RequestException as exc:
+                if streamed_chunks and _is_premature_stream_end(exc):
+                    _LOGGER.warning(
+                        "Streaming agent API ended prematurely after %s chunks; preserving received content",
+                        streamed_chunks,
+                    )
+                    if pending_escape:
+                        yield normalize_message_content(pending_escape)
+                    return
+                raise
     except requests.RequestException as exc:
         _LOGGER.error("Streaming agent API request failed: %s", exc)
         raise RuntimeError(f"Agent API request failed: {exc}") from exc
