@@ -28,6 +28,20 @@ def async_client():
 
 
 class TestExchangeToken:
+    async def test_request_id_header_is_preserved(self, async_client):
+        async with async_client as client:
+            resp = await client.get("/healthz", headers={"X-Request-ID": "req-123"})
+
+        assert resp.status_code == 200
+        assert resp.headers["X-Request-ID"] == "req-123"
+
+    async def test_request_id_header_is_not_added_when_missing(self, async_client):
+        async with async_client as client:
+            resp = await client.get("/healthz")
+
+        assert resp.status_code == 200
+        assert "X-Request-ID" not in resp.headers
+
     async def test_success_cache_miss(self, async_client):
         token = _make_jwt()
         result = IdentityTokenResult(identity_token=token, expires_at=int(time.time()) + 3600, cached=False)

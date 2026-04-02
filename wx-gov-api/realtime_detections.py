@@ -1,5 +1,6 @@
 import argparse
 import json
+import logging
 from numbers import Real
 import os
 
@@ -15,11 +16,13 @@ from ibm_watsonx_gov.metrics import (
     UnethicalBehaviorMetric,
     PromptSafetyRiskMetric,
 )
+from structured_logging import get_logger, log_event
 
 RESOURCE_CONTROLLER_URL = (
     "https://resource-controller.cloud.ibm.com/v2/resource_instances"
 )
 OPENSCALE_RESOURCE_ID = "2ad019f3-0fd6-4c25-966d-f3952481a870"
+logger = get_logger(__name__)
 
 
 def require_env(name: str) -> str:
@@ -91,6 +94,12 @@ def configure_environment() -> None:
 
 def evaluate_text_metrics(text: str) -> dict[str, float]:
     configure_environment()
+    log_event(
+        logger,
+        logging.INFO,
+        "guardrails.metrics.started",
+        "Starting realtime metrics evaluation",
+    )
 
     evaluator = MetricsEvaluator()
     result = evaluator.evaluate(
@@ -103,8 +112,10 @@ def evaluate_text_metrics(text: str) -> dict[str, float]:
             UnethicalBehaviorMetric(),
         ],
     )
-
-    print("Raw evaluation result:", result)
+    logger.debug(
+        "Realtime metrics raw result",
+        extra={"event": "guardrails.metrics.raw_result", "raw_result": str(result)},
+    )
 
     result_frame = result.to_df()
     if result_frame.empty:
@@ -121,6 +132,13 @@ def evaluate_text_metrics(text: str) -> dict[str, float]:
             "Realtime detection did not return any numeric metric scores."
         )
 
+    log_event(
+        logger,
+        logging.INFO,
+        "guardrails.metrics.completed",
+        "Completed realtime metrics evaluation",
+        metric_scores=metric_scores,
+    )
     return metric_scores
 
 

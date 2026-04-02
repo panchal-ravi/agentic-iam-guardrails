@@ -1,11 +1,13 @@
 import argparse
 import json
+import logging
 import os
 from dataclasses import dataclass
 from typing import Any
 
 import requests
 from dotenv import load_dotenv
+from structured_logging import get_logger, log_event
 
 IAM_URL = "https://iam.cloud.ibm.com/identity/token"
 REGION_BASE_URLS = {
@@ -16,6 +18,7 @@ REGION_BASE_URLS = {
     "jp-tok": "https://jp-tok.api.aiopenscale.cloud.ibm.com",
     "eu-gb": "https://eu-gb.api.aiopenscale.cloud.ibm.com",
 }
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -230,8 +233,25 @@ def extract_masked_text(response: dict[str, Any], original_text: str) -> str:
 
 def mask_pii_text(text: str, direction: str = "input") -> str:
     config = load_config()
+    log_event(
+        logger,
+        logging.INFO,
+        "guardrails.masking.started",
+        "Starting PII masking enforcement",
+        direction=direction,
+        policy_id=config.policy_id,
+    )
     response = enforce_policy(config, text=text, direction=direction)
-    return extract_masked_text(response, original_text=text)
+    masked_text = extract_masked_text(response, original_text=text)
+    log_event(
+        logger,
+        logging.INFO,
+        "guardrails.masking.completed",
+        "Completed PII masking enforcement",
+        direction=direction,
+        policy_id=config.policy_id,
+    )
+    return masked_text
 
 
 def parse_args() -> argparse.Namespace:

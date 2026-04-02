@@ -153,7 +153,11 @@ def perform_token_exchange(
     request = urllib.request.Request(
         settings.token_exchange_url,
         data=payload,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "X-Request-ID": request_id,
+        },
         method="POST",
     )
 

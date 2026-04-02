@@ -31,10 +31,17 @@ app = FastAPI(
 async def correlation_id_middleware(request: Request, call_next):
     """Bind a per-request correlation ID to all log entries."""
     request_id = request.headers.get("X-Request-ID")
-    rid = bind_request_id(request_id)
-    response = await call_next(request)
-    response.headers["X-Request-ID"] = rid
-    clear_request_id()
+    if request_id is not None:
+        bind_request_id(request_id)
+
+    try:
+        response = await call_next(request)
+    finally:
+        clear_request_id()
+
+    if request_id is not None:
+        response.headers["X-Request-ID"] = request_id
+
     return response
 
 

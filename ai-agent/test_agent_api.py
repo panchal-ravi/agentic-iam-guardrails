@@ -370,6 +370,7 @@ def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch):
         "headers": {
             "accept": "application/json",
             "content-type": "application/json",
+            "x-request-id": "request-1",
         },
         "timeout": agent_api.SETTINGS.token_exchange_timeout_seconds,
     }

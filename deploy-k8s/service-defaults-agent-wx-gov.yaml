@@ -25,19 +25,17 @@ spec:
             trust_domain = tostring(consul_ns["trust-domain"])
             datacenter = tostring(consul_ns["datacenter"])
           end
-
-          request_handle:logInfo("Trust Domain: " .. trust_domain)
-          request_handle:logInfo("Datacenter: " .. datacenter)
           
           local wxg_service = "wx-gov-api.default." .. datacenter .. ".internal." .. trust_domain
-          request_handle:logInfo("wx-gov-api service: " .. wxg_service)
+          local request_id = request_handle:headers():get("x-request-id") or request_handle:headers():get("X-Request-ID")
 
           -- Prepare wx-gov-api POST request
           local headers = {
             [":method"] = "POST",
             [":path"] = "/evaluate",
             [":authority"] = wxg_service,
-            ["content-type"] = "text/plain"
+            ["content-type"] = "text/plain",
+            ["X-Request-ID"] = request_id
           }
 
           -- Base64 encode body_str using Envoy's built-in function
@@ -95,13 +93,15 @@ spec:
               end
             end
             local wxg_service = "wx-gov-api.default." .. datacenter .. ".internal." .. trust_domain
+            local request_id = response_handle:headers():get("x-request-id") or response_handle:headers():get("X-Request-ID") or response_handle:streamInfo():requestID()
 
             -- Prepare wx-gov-api POST request
             local headers = {
               [":method"] = "POST",
               [":path"] = "/mask",
               [":authority"] = wxg_service,
-              ["content-type"] = "text/plain"
+              ["content-type"] = "text/plain",
+              ["X-Request-ID"] = request_id
             }
 
             local encoded_body = response_handle:base64Escape(body_str)

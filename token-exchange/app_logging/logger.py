@@ -1,6 +1,5 @@
 import logging
 import sys
-import uuid
 
 import structlog
 
@@ -33,11 +32,9 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     return structlog.get_logger(name)
 
 
-def bind_request_id(request_id: str | None = None) -> str:
-    """Bind a correlation/request ID to the current context."""
-    rid = request_id or str(uuid.uuid4())
-    structlog.contextvars.bind_contextvars(request_id=rid)
-    return rid
+def bind_request_id(request_id: str) -> None:
+    """Bind the caller-provided request ID to the current context."""
+    structlog.contextvars.bind_contextvars(request_id=request_id)
 
 
 def clear_request_id() -> None:

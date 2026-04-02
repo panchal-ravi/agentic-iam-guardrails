@@ -39,6 +39,7 @@ These variables are used by the API:
 - `GUARDRAIL_SYSTEM_PROMPT`: optional, only needed for prompt-based detectors.
 - `GUARDRAIL_BASE_URL`: optional override for the guardrails base URL.
 - `VERIFY_SSL`: optional SSL verification toggle. Leave as `true` unless you intentionally need otherwise.
+- `LOG_LEVEL`: optional log level for JSON logs. Defaults to `INFO`.
 - `PORT`: optional API server port. Defaults to `8000`.
 
 ## Run without Docker
@@ -55,6 +56,30 @@ Start the API:
 export PORT=8000
 uv run uvicorn ai_guardrails_api:app --host 0.0.0.0 --port "${PORT}"
 ```
+
+The API emits structured JSON logs to stdout. Each log includes at least:
+
+- `request_id`
+- `event`
+- `timestamp`
+- `message`
+
+Request IDs are accepted from `X-Request-ID` when provided, or generated automatically and returned in the response headers.
+
+For request-scoped application logs, the standard fields are:
+
+- `timestamp`: UTC RFC3339 timestamp with millisecond precision
+- `request_id`: incoming `X-Request-ID` value or a generated UUID
+- `event`: stable machine-readable event name such as `http.request.completed`
+- `message`: human-readable summary
+- `method`: HTTP method when a request context exists
+- `path`: request path when a request context exists
+- `client_ip`: originating client IP when available
+
+Completion and error events also include:
+
+- `status_code`: HTTP status returned or surfaced by the handler
+- `duration_ms`: total request processing time in milliseconds for request lifecycle logs
 
 ## Run with Docker
 

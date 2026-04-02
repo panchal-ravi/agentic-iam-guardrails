@@ -3,23 +3,31 @@ import binascii
 import json
 import logging
 import os
+from time import perf_counter
 import uuid
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import PlainTextResponse
 
 from pydantic import BaseModel
 
 from pii_masking import mask_pii_text
 from realtime_detections import evaluate_text_metrics
+from structured_logging import (
+    configure_logging,
+    get_logger,
+    log_event,
+    reset_request_id,
+    reset_request_fields,
+    set_request_id,
+    set_request_fields,
+)
 
 load_dotenv()
-logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO").upper(),
-    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
-)
+configure_logging()
 THRESHOLD = 0.5
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 app = FastAPI(title="Combined Guardrails API")
 
@@ -62,11 +70,13 @@ def parse_encoded_text_payload(body: bytes) -> str:
 
 def guardrail_response(text: str, request_id: str, client_ip: str) -> GuardRailResponse:
     metric_scores = evaluate_text_metrics(text)
-    logger.info(
-        "Evaluated metrics for request_id=%s client_ip=%s scores=%s",
-        request_id,
-        client_ip,
-        metric_scores,
+    log_event(
+        logger,
+        logging.INFO,
+        "guardrails.metrics.evaluated",
+        "Evaluated guardrail metrics",
+        request_id=request_id,
+        metric_scores=metric_scores,
     )
     triggered_filters = [
         metric_name
@@ -81,35 +91,95 @@ def guardrail_response(text: str, request_id: str, client_ip: str) -> GuardRailR
         filters=",".join(triggered_filters),
         text=text,
     )
-    logger.info(
-        "GuardRailResponse generated request_id=%s client_ip=%s payload=%s",
-        request_id,
-        client_ip,
-        result.model_dump(),
+    log_event(
+        logger,
+        logging.INFO,
+        "guardrails.response.generated",
+        "Generated guardrail response",
+        request_id=request_id,
+        is_blocked=result.is_blocked,
+        filters=triggered_filters,
     )
     return result
 
 
-@app.post("/evaluate")
-async def evaluate(
-    response: Response,
-    http_request: Request,
-):
-    request_id = http_request.headers.get("x-request-id", str(uuid.uuid4()))
-    response.headers["x-request-id"] = request_id
+def get_client_ip(http_request: Request) -> str:
     forwarded_for = http_request.headers.get("x-forwarded-for")
-    client_ip = (
+    return (
         forwarded_for.split(",")[0].strip()
         if forwarded_for
         else (http_request.client.host if http_request.client else "unknown")
     )
-    logger.info("Received /evaluate request_id=%s client_ip=%s", request_id, client_ip)
+
+
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
+    client_ip = get_client_ip(request)
+    request.state.request_id = request_id
+    request.state.client_ip = client_ip
+
+    context_token = set_request_id(request_id)
+    request_fields_token = set_request_fields(
+        method=request.method,
+        path=request.url.path,
+        client_ip=client_ip,
+    )
+    started_at = perf_counter()
+    log_event(
+        logger,
+        logging.INFO,
+        "http.request.received",
+        "HTTP request received",
+        request_id=request_id,
+    )
+
+    try:
+        response = await call_next(request)
+        response.headers["x-request-id"] = request_id
+        duration_ms = round((perf_counter() - started_at) * 1000, 3)
+        log_event(
+            logger,
+            logging.INFO,
+            "http.request.completed",
+            "HTTP request completed",
+            request_id=request_id,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+        )
+        return response
+    except Exception:
+        duration_ms = round((perf_counter() - started_at) * 1000, 3)
+        logger.exception(
+            "HTTP request failed",
+            extra={
+                "event": "http.request.failed",
+                "request_id": request_id,
+                "duration_ms": duration_ms,
+            },
+        )
+        raise
+    finally:
+        reset_request_fields(request_fields_token)
+        reset_request_id(context_token)
+
+
+@app.post("/evaluate")
+async def evaluate(
+    http_request: Request,
+):
+    request_id = http_request.state.request_id
+    client_ip = http_request.state.client_ip
     try:
         encoded_text = parse_encoded_text_payload(await http_request.body())
         decoded_text = decode_base64_text(encoded_text)
     except ValueError as exc:
-        logger.warning(
-            "Invalid base64 input request_id=%s client_ip=%s", request_id, client_ip
+        log_event(
+            logger,
+            logging.WARNING,
+            "guardrails.request.invalid_payload",
+            "Received invalid base64 input",
+            request_id=request_id,
         )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -118,21 +188,36 @@ async def evaluate(
             decoded_text, request_id=request_id, client_ip=client_ip
         )
         if result.is_blocked:
-            response.status_code = 400
-            logger.info(
-                "Request blocked request_id=%s client_ip=%s filters=%s",
-                request_id,
-                client_ip,
-                result.filters,
+            log_event(
+                logger,
+                logging.INFO,
+                "guardrails.request.blocked",
+                "Request blocked by guardrails",
+                request_id=request_id,
+                filters=result.filters.split(",") if result.filters else [],
+                status_code=400,
             )
-            return os.getenv("BLOCKED_CONTENT_MESSAGE", "This content was blocked.")
-        logger.info("Request allowed request_id=%s client_ip=%s", request_id, client_ip)
+            return PlainTextResponse(
+                os.getenv("BLOCKED_CONTENT_MESSAGE", "This content was blocked."),
+                status_code=400,
+            )
+        log_event(
+            logger,
+            logging.INFO,
+            "guardrails.request.allowed",
+            "Request allowed by guardrails",
+            request_id=request_id,
+            status_code=200,
+        )
         return result.text
     except RuntimeError as exc:
         logger.exception(
-            "Guardrail evaluation failed request_id=%s client_ip=%s",
-            request_id,
-            client_ip,
+            "Guardrail evaluation failed",
+            extra={
+                "event": "guardrails.evaluation.failed",
+                "request_id": request_id,
+                "status_code": 502,
+            },
         )
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -141,29 +226,38 @@ async def evaluate(
 async def mask(
     http_request: Request,
 ):
-    request_id = http_request.headers.get("x-request-id", str(uuid.uuid4()))
-    forwarded_for = http_request.headers.get("x-forwarded-for")
-    client_ip = (
-        forwarded_for.split(",")[0].strip()
-        if forwarded_for
-        else (http_request.client.host if http_request.client else "unknown")
-    )
-    logger.info("Received /mask request_id=%s client_ip=%s", request_id, client_ip)
+    request_id = http_request.state.request_id
+    client_ip = http_request.state.client_ip
 
     try:
         encoded_text = parse_encoded_text_payload(await http_request.body())
         decoded_text = decode_base64_text(encoded_text)
         masked_text = mask_pii_text(decoded_text)
+        log_event(
+            logger,
+            logging.INFO,
+            "guardrails.mask.completed",
+            "PII masking completed",
+            request_id=request_id,
+            status_code=200,
+        )
         return masked_text
     except ValueError as exc:
-        logger.warning(
-            "Invalid base64 input request_id=%s client_ip=%s", request_id, client_ip
+        log_event(
+            logger,
+            logging.WARNING,
+            "guardrails.request.invalid_payload",
+            "Received invalid base64 input",
+            request_id=request_id,
         )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         logger.exception(
-            "PII masking failed request_id=%s client_ip=%s",
-            request_id,
-            client_ip,
+            "PII masking failed",
+            extra={
+                "event": "guardrails.mask.failed",
+                "request_id": request_id,
+                "status_code": 502,
+            },
         )
         raise HTTPException(status_code=502, detail=str(exc)) from exc

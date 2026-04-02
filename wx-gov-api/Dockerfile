@@ -21,7 +21,7 @@ RUN if [ "$TARGETARCH" != "amd64" ]; then \
 
 RUN python -m pip install --no-cache-dir -r requirements.txt
 
-COPY ai_guardrails_api.py pii_masking.py realtime_detections.py ./
+COPY ./*.py ./
 
 EXPOSE 8000
 

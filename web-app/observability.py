@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import uuid
+from datetime import UTC, datetime
 from collections.abc import Mapping, MutableMapping
 from contextvars import ContextVar
 from typing import Any
@@ -22,6 +24,27 @@ class _RequestIdFilter(logging.Filter):
         return True
 
 
+class _JsonFormatter(logging.Formatter):
+    """Render log records as JSON for structured ingestion."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload: dict[str, Any] = {
+            "timestamp": datetime.fromtimestamp(record.created, tz=UTC).isoformat(),
+            "request_id": getattr(record, "request_id", "-"),
+            "message": record.getMessage(),
+            "level": record.levelname,
+            "logger": record.name,
+        }
+
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+
+        if record.stack_info:
+            payload["stack_info"] = self.formatStack(record.stack_info)
+
+        return json.dumps(payload, ensure_ascii=True)
+
+
 def configure_logging() -> None:
     """Configure the application logger once per process."""
     app_logger = logging.getLogger(_APP_LOGGER_NAME)
@@ -29,11 +52,7 @@ def configure_logging() -> None:
         return
 
     handler = logging.StreamHandler()
-    handler.setFormatter(
-        logging.Formatter(
-            "%(asctime)s %(levelname)s [%(name)s] request_id=%(request_id)s %(message)s"
-        )
-    )
+    handler.setFormatter(_JsonFormatter())
     handler.addFilter(_RequestIdFilter())
 
     level_name = os.getenv("LOG_LEVEL", "INFO").upper()
