@@ -64,28 +64,57 @@ def _copy_to_clipboard_button(text: str) -> None:
     )
 
 
-def _decode_jwt_payload(token: str) -> str:
-    """Decode and pretty-print the JWT payload as JSON (no signature verification)."""
+def _decode_token_value(token: str) -> str:
+    """Decode a JWT payload or base64/base64url token into a display-friendly string."""
+    if not token:
+        return ""
+
     try:
-        payload_b64 = token.split(".")[1]
-        padding = 4 - len(payload_b64) % 4
-        decoded = json.loads(base64.urlsafe_b64decode(payload_b64 + "=" * padding))
-        return json.dumps(decoded, indent=2)
+        if token.count(".") >= 2:
+            payload_b64 = token.split(".")[1]
+            padding = "=" * ((4 - len(payload_b64) % 4) % 4)
+            decoded_payload = base64.urlsafe_b64decode(payload_b64 + padding).decode("utf-8")
+        else:
+            padding = "=" * ((4 - len(token) % 4) % 4)
+            decoded_payload = base64.urlsafe_b64decode(token + padding).decode("utf-8")
+
+        parsed = json.loads(decoded_payload)
+        return json.dumps(parsed, indent=2)
     except Exception:
-        return token
+        return "Decoded token payload is unavailable."
 
 
-def render_access_token_popover(use_container_width: bool = True) -> None:
-    """Render the access token popover button."""
+def render_token_contents(
+    title: str,
+    token: str,
+    *,
+    empty_message: str,
+    show_title: bool = True,
+) -> None:
+    """Render the common encoded and decoded token views."""
+    if show_title:
+        st.markdown(f"**{title}**")
+
+    if not token:
+        st.info(empty_message)
+        return
+
+    st.markdown("**Base64 Encoded Token**")
+    _copy_to_clipboard_button(token)
+    st.code(token, language="text")
+    st.markdown("**Base64 Decoded JSON**")
+    st.code(_decode_token_value(token), language="json")
+
+
+def render_access_token_expander(*, expanded: bool = False) -> None:
+    """Render the access token in an expander for the token side panel."""
     access_token = get_access_token()
-
-    with st.popover("🔑 Access Token", use_container_width=use_container_width):
-        st.markdown("**OAuth 2.0 JWT Access Token**")
-        st.markdown("**Raw Encoded Token**")
-        _copy_to_clipboard_button(access_token)
-        st.code(access_token, language="text")
-        st.markdown("**Decoded Payload**")
-        st.code(_decode_jwt_payload(access_token), language="json")
+    with st.expander("Subject Token", expanded=expanded):
+        render_token_contents(
+            "OAuth 2.0 JWT Access Token",
+            access_token,
+            empty_message="No subject token is available for this session.",
+        )
 
 
 def render_navbar() -> None:

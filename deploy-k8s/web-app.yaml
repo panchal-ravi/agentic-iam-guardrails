@@ -23,6 +23,7 @@ spec:
       containers:
         - name: web
           image: panchalravi/agentguard-web-app:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8501
           env:

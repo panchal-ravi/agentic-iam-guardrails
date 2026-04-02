@@ -1,5 +1,6 @@
 """Remote AI agent HTTP client."""
 
+import json
 from collections.abc import Iterator
 
 import requests
@@ -11,6 +12,7 @@ from services.response_normalization import normalize_message_content
 _LOGGER = get_logger("services.agent_api")
 _AGENT_BASE_URL = AI_AGENT_API_URL
 _AGENT_URL = f"{_AGENT_BASE_URL}/v1/agent/query"
+_AGENT_TOKENS_URL = f"{_AGENT_BASE_URL}/v1/agent/tokens"
 
 
 def _build_headers(access_token: str) -> dict[str, str]:
@@ -62,6 +64,58 @@ def _extract_agent_response(response: requests.Response) -> dict:
         }
 
     return {"response": normalize_message_content(str(data)), "obo_token": ""}
+
+
+def _normalize_agent_tokens_payload(data: object) -> dict[str, str] | None:
+    """Return normalized agent tokens from direct, wrapped, or stringified payloads."""
+    if isinstance(data, str):
+        stripped_data = data.strip()
+        if not stripped_data:
+            return None
+
+        try:
+            return _normalize_agent_tokens_payload(json.loads(stripped_data))
+        except json.JSONDecodeError:
+            return None
+
+    if not isinstance(data, dict):
+        return None
+
+    actor_token = data.get("actor_token")
+    obo_token = data.get("obo_token")
+    if actor_token is not None or obo_token is not None:
+        return {
+            "actor_token": str(actor_token or ""),
+            "obo_token": str(obo_token or ""),
+        }
+
+    for wrapper_key in ("data", "result", "response", "payload", "body"):
+        nested_payload = data.get(wrapper_key)
+        normalized = _normalize_agent_tokens_payload(nested_payload)
+        if normalized is not None:
+            return normalized
+
+    return None
+
+
+def _extract_agent_tokens(response: requests.Response) -> dict[str, str]:
+    """Normalize the agent token response into actor/obo token fields."""
+    try:
+        data = response.json()
+    except requests.JSONDecodeError:
+        data = None
+
+    normalized = _normalize_agent_tokens_payload(data)
+    if normalized is not None:
+        return normalized
+
+    normalized_from_text = _normalize_agent_tokens_payload(response.text)
+    if normalized_from_text is not None:
+        return normalized_from_text
+
+    raise RuntimeError(
+        "Agent tokens API returned an unexpected response shape."
+    )
 
 
 def _extract_error_body(response: requests.Response) -> str:
@@ -146,6 +200,25 @@ def invoke_agent(message: str, history: list, access_token: str = "") -> dict:
     except requests.RequestException as exc:
         _LOGGER.error("Agent API request failed: %s", exc)
         raise RuntimeError(f"Agent API request failed: {exc}") from exc
+
+
+def get_agent_tokens(access_token: str = "") -> dict[str, str]:
+    """Fetch actor and OBO tokens for the authenticated user session."""
+    if not _AGENT_BASE_URL:
+        raise RuntimeError("AI_AGENT_API_URL is not configured.")
+
+    headers = _build_headers(access_token)
+
+    try:
+        _LOGGER.info("Fetching agent tokens from %s", _AGENT_TOKENS_URL)
+        response = requests.get(_AGENT_TOKENS_URL, headers=headers, timeout=30)
+        if not response.ok:
+            _raise_agent_http_error(response, "Agent tokens API returned HTTP %s")
+        _LOGGER.info("Agent tokens API completed with status %s", response.status_code)
+        return _extract_agent_tokens(response)
+    except requests.RequestException as exc:
+        _LOGGER.error("Agent tokens API request failed: %s", exc)
+        raise RuntimeError(f"Agent tokens API request failed: {exc}") from exc
 
 
 def stream_agent_response(

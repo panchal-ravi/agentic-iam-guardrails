@@ -234,6 +234,41 @@ button[data-testid="baseButton-secondary"]:hover {
   backdrop-filter: blur(18px);
 }
 
+[data-testid="stExpander"] {
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+[data-testid="stExpander"] details {
+  background: transparent !important;
+}
+
+[data-testid="stExpander"] summary {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-weight: 600;
+}
+
+[data-testid="stExpander"] summary:hover,
+[data-testid="stExpander"] summary:focus,
+[data-testid="stExpander"] summary:focus-visible,
+[data-testid="stExpander"] summary p,
+[data-testid="stExpander"] summary span,
+[data-testid="stExpander"] summary div,
+[data-testid="stExpander"] summary svg,
+[data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+}
+
+[data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+  padding-top: 0.5rem;
+}
+
 /* ── Code blocks (for token display) ── */
 [data-testid="stCode"],
 .stCodeBlock {
@@ -297,32 +332,6 @@ h1, h2, h3, h4, h5, h6 {
 /* ── Spinner ── */
 [data-testid="stSpinner"] {
   color: var(--ibm-blue) !important;
-}
-
-.premium-welcome {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 8px 0 28px;
-  color: var(--text-secondary);
-}
-
-.premium-welcome__label {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: var(--accent-pill-text);
-  background: var(--accent-pill-bg);
-  border: 1px solid var(--accent-pill-border);
-}
-
-.premium-welcome__value {
-  font-size: 14px;
 }
 
 .premium-eyebrow {
@@ -416,6 +425,37 @@ h1, h2, h3, h4, h5, h6 {
   gap: 10px;
   padding: 24px 26px;
   margin-bottom: 18px;
+}
+
+.premium-token-panel {
+  margin-bottom: 16px;
+  padding: 22px 24px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(18px);
+}
+
+.premium-token-panel__eyebrow {
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ibm-blue);
+}
+
+.premium-token-panel h3 {
+  margin: 0 0 10px;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.premium-token-panel p {
+  margin: 0;
+  color: var(--text-secondary);
+  line-height: 1.6;
 }
 
 .premium-chat-header h2,

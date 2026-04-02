@@ -5,9 +5,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 from auth.session import get_access_token, get_user_info
-from components.navbar import render_access_token_popover
+from components.navbar import render_access_token_expander, render_token_contents
 from observability import get_logger
-from services.agent_api import stream_agent_response
+from services.agent_api import get_agent_tokens, stream_agent_response
 from services.response_normalization import normalize_message_content
 
 LOGGER = get_logger("components.chat_workspace")
@@ -191,6 +191,9 @@ def _ensure_workspace_state() -> None:
     """Initialize session state used by the landing/chat workspace."""
     st.session_state.setdefault("chat_open", False)
     st.session_state.setdefault("messages", [])
+    st.session_state.setdefault("agent_tokens", {})
+    st.session_state.setdefault("agent_tokens_error", "")
+    st.session_state.setdefault("agent_tokens_loaded", False)
 
 
 def _start_chat() -> None:
@@ -198,10 +201,27 @@ def _start_chat() -> None:
     st.session_state["chat_open"] = True
 
 
+def _refresh_agent_tokens() -> None:
+    """Fetch and persist the latest agent tokens for the current session."""
+    try:
+        agent_tokens = get_agent_tokens(get_access_token())
+        st.session_state["agent_tokens"] = agent_tokens
+        st.session_state["agent_tokens_error"] = ""
+        st.session_state["agent_tokens_loaded"] = True
+    except RuntimeError as exc:
+        LOGGER.error("Agent token retrieval failed: %s", exc)
+        st.session_state["agent_tokens"] = {}
+        st.session_state["agent_tokens_error"] = str(exc)
+        st.session_state["agent_tokens_loaded"] = False
+
+
 def _clear_chat() -> None:
     """Reset conversation history while keeping the chat panel open."""
     st.session_state["messages"] = []
     st.session_state.pop("obo_token", None)
+    st.session_state["agent_tokens"] = {}
+    st.session_state["agent_tokens_error"] = ""
+    st.session_state["agent_tokens_loaded"] = False
     st.session_state["chat_open"] = True
 
 
@@ -209,7 +229,6 @@ def _render_left_panel() -> None:
     """Render the editorial left panel with controls and context."""
     user_info = get_user_info()
     first_name = user_info.get("name", "").split()[0] if user_info.get("name") else "there"
-    chat_open = st.session_state.get("chat_open", False)
     message_count = len(st.session_state.get("messages", []))
 
     st.markdown(
@@ -231,9 +250,7 @@ def _render_left_panel() -> None:
         unsafe_allow_html=True,
     )
 
-    token_col, start_col = st.columns([1.05, 1.25], gap="small")
-    with token_col:
-        render_access_token_popover(use_container_width=True)
+    start_col, _ = st.columns([1.25, 1.05], gap="small")
     with start_col:
         st.button(
             "Start Chatting →",
@@ -242,15 +259,9 @@ def _render_left_panel() -> None:
             on_click=_start_chat,
         )
 
-    status = "Live session" if chat_open else "Standby"
     st.markdown(
         f"""
         <div class="premium-stat-grid">
-            <div class="premium-stat-card">
-                <span class="premium-stat-label">Workspace</span>
-                <strong>{status}</strong>
-                <span class="premium-stat-copy">The right panel activates when you start chatting.</span>
-            </div>
             <div class="premium-stat-card">
                 <span class="premium-stat-label">Conversation</span>
                 <strong>{message_count} messages</strong>
@@ -271,8 +282,8 @@ def _render_empty_state() -> None:
             <h2>Open the chat workspace from the left rail.</h2>
             <p>
                 The right panel becomes a live assistant canvas once you start chatting.
-                You can keep identity controls and task context visible on the left while
-                the agent works on the right.
+                You can keep the operator context on the left while the live chat and token
+                inspection panels stay visible on the right.
             </p>
             <div class="premium-orbit premium-orbit--one"></div>
             <div class="premium-orbit premium-orbit--two"></div>
@@ -312,6 +323,8 @@ def _stream_assistant_response(user_input: str) -> None:
             st.session_state["messages"].append(
                 {"role": "assistant", "content": response_text}
             )
+            if history or user_input.strip():
+                _refresh_agent_tokens()
             LOGGER.info("Received streamed assistant response from agent API")
         except RuntimeError as exc:
             LOGGER.error("Chat submission failed: %s", exc)
@@ -340,7 +353,7 @@ def _render_active_chat() -> None:
             st.markdown(
                 """
                 <div class="premium-chat-hint">
-                    Try asking for runtime security guidance, policy analysis, or workflow automation help.
+                    Your helpful AI Assistant
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -388,10 +401,52 @@ def _render_active_chat() -> None:
     _mount_enter_to_send_handler()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    obo_token = st.session_state.get("obo_token")
-    if obo_token:
-        with st.expander("🔗 OBO Token", expanded=False):
-            st.code(obo_token, language="text")
+def _render_token_panel() -> None:
+    """Render the right-side token inspection panel."""
+    agent_tokens = st.session_state.get("agent_tokens", {})
+    agent_tokens_error = st.session_state.get("agent_tokens_error", "")
+    agent_tokens_loaded = st.session_state.get("agent_tokens_loaded", False)
+    has_user_message = any(msg.get("role") == "user" for msg in st.session_state.get("messages", []))
+
+    st.markdown(
+        """
+        <div class="premium-token-panel">
+            <div class="premium-token-panel__eyebrow">Identity inspector</div>
+            <h3>Token context</h3>
+            <p>Inspect the subject token and the delegated agent tokens without leaving the workspace.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    render_access_token_expander(expanded=False)
+
+    if agent_tokens_error:
+        st.error(agent_tokens_error)
+
+    if not has_user_message:
+        st.info("Agent tokens will appear after you send your first message to the AI agent.")
+        return
+
+    if not agent_tokens_loaded and not agent_tokens:
+        st.info("Agent tokens are not available yet.")
+        return
+
+    with st.expander("Agent - Actor Token", expanded=False):
+        render_token_contents(
+            "Actor Token",
+            agent_tokens.get("actor_token", ""),
+            empty_message="No actor token was returned by the agent tokens endpoint.",
+            show_title=False,
+        )
+
+    with st.expander("Agent - OBO Token", expanded=False):
+        render_token_contents(
+            "OBO Token",
+            agent_tokens.get("obo_token", ""),
+            empty_message="No OBO token was returned by the agent tokens endpoint.",
+            show_title=False,
+        )
 
 
 def render_chat_workspace(open_chat: bool = False) -> None:
@@ -401,13 +456,19 @@ def render_chat_workspace(open_chat: bool = False) -> None:
     if open_chat:
         st.session_state["chat_open"] = True
 
-    left_col, right_col = st.columns([0.9, 1.45], gap="large")
+    left_col, right_col = st.columns([0.72, 1.63], gap="large")
 
     with left_col:
         _render_left_panel()
 
     with right_col:
-        if st.session_state["chat_open"]:
-            _render_active_chat()
-        else:
-            _render_empty_state()
+        chat_col, token_col = st.columns([1.55, 0.85], gap="medium")
+
+        with chat_col:
+            if st.session_state["chat_open"]:
+                _render_active_chat()
+            else:
+                _render_empty_state()
+
+        with token_col:
+            _render_token_panel()
