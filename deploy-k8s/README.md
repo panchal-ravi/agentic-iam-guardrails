@@ -66,8 +66,8 @@ kubectl delete -n opa -f deploy-k8s/opa-server.yaml
 kubectl delete ns opa
 
 kubectl delete secret wx-gov-api-env
-kubectl delete -f deploy-k8s/wx-gov-api.yaml
 kubectl delete -f deploy-k8s/service-defaults-agent-wx-gov.yaml 
+kubectl delete -f deploy-k8s/wx-gov-api.yaml
 
 kubectl delete -f deploy-k8s/mesh.yaml
 kubectl delete -f deploy-k8s/proxy-defaults.yaml
