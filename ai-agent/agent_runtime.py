@@ -52,6 +52,8 @@ class AgentRuntime:
         obo_token: str | None,
         request_id: str,
         request_path: str,
+        request_method: str,
+        client_ip: str | None,
     ) -> StreamingResponse:
         langchain_messages = [
             SystemMessage(content=SYSTEM_PROMPT)
@@ -83,6 +85,8 @@ class AgentRuntime:
                 response_stream=response_stream,
                 request_id=request_id,
                 request_path=request_path,
+                request_method=request_method,
+                client_ip=client_ip,
                 logger=self.logger,
             ),
             media_type="text/plain",
@@ -212,6 +216,8 @@ def _stream_text_chunks(
     response_stream: Iterable[Any],
     request_id: str,
     request_path: str,
+    request_method: str,
+    client_ip: str | None,
     logger: logging.Logger,
 ) -> Iterator[str]:
     response_parts: list[str] = []
@@ -227,6 +233,8 @@ def _stream_text_chunks(
             "response_sent",
             request_id=request_id,
             path=request_path,
+            http_method=request_method,
+            client_ip=client_ip,
             response_text="".join(response_parts),
             status_code=200,
         )

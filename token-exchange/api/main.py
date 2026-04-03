@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
+import time
 from typing import AsyncGenerator
+from uuid import uuid4
 
 import structlog
 from fastapi import FastAPI, Request
@@ -7,12 +9,13 @@ from fastapi.responses import JSONResponse
 
 from api.routes import router
 from config.settings import settings
-from app_logging.logger import bind_request_id, clear_request_id, configure_logging
+from app_logging.logger import bind_request_context, clear_request_id, configure_logging
+
+configure_logging(settings.log_level)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    configure_logging(settings.log_level)
     settings.log_configured_values()
     structlog.get_logger(__name__).info("identity_broker_starting", vault_addr=settings.vault_addr)
     yield
@@ -29,20 +32,25 @@ app = FastAPI(
 
 @app.middleware("http")
 async def correlation_id_middleware(request: Request, call_next):
-    """Bind a per-request correlation ID to all log entries."""
-    request_id = request.headers.get("X-Request-ID")
-    if request_id is not None:
-        bind_request_id(request_id)
+    """Bind request metadata to all log entries for the current request."""
+    incoming_request_id = request.headers.get("X-Request-ID")
+    request_id = incoming_request_id or str(uuid4())
+    start = time.monotonic()
+    bind_request_context(request, request_id)
 
     try:
         response = await call_next(request)
+        duration_ms = int((time.monotonic() - start) * 1000)
+        structlog.get_logger("api.access").info(
+            "request_completed",
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+        )
+        if incoming_request_id is not None:
+            response.headers["X-Request-ID"] = request_id
+        return response
     finally:
         clear_request_id()
-
-    if request_id is not None:
-        response.headers["X-Request-ID"] = request_id
-
-    return response
 
 
 @app.exception_handler(Exception)

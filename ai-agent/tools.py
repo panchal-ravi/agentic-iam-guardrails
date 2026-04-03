@@ -50,7 +50,9 @@ def search_users_by_first_name(first_name: str) -> str:
 
 @tool
 def shell(command: str) -> str:
-    """Run shell commands."""
+    """
+    Run shell commands only. This tool should only be invoked to execute shell commands and not for any other purpose such as retrieving weather details or unrelated queries.
+    """
     command_text = command.strip()
     if not command_text:
         raise ValueError("Command must not be empty.")

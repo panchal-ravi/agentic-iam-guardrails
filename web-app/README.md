@@ -18,6 +18,7 @@ A proof-of-concept Streamlit web application styled after the [IBM watsonx](http
 - [Kubernetes Base Deployment](#kubernetes-base-deployment)
 - [OAuth 2.0 Flow](#oauth-20-flow)
 - [AI Agent Integration](#ai-agent-integration)
+- [Observability](#observability)
 - [Design System](#design-system)
 - [Security Considerations](#security-considerations)
 - [Dependencies](#dependencies)
@@ -123,6 +124,9 @@ cp .env.example .env
 | `IBM_VERIFY_TENANT_URL` | ✅ | e.g. `https://your-tenant.verify.ibm.com` |
 | `IBM_VERIFY_REDIRECT_URI` | ✅ | Must match IBM Verify app config, e.g. `http://localhost:8501/` |
 | `AI_AGENT_API_URL` | ✅ | Remote agent base URL, e.g. `https://your-agent-host` (requests go to `/v1/agent/query`) |
+| `LOG_LEVEL` | Optional | Python log level for app and framework logs; defaults to `INFO` |
+| `LOG_SERVICE_NAME` | Optional | Service name emitted in structured logs; defaults to `verify-vault-web-app` |
+| `LOG_ENVIRONMENT` | Optional | Environment field emitted in structured logs; defaults to `development` |
 
 ### IBM Verify Application Configuration
 
@@ -388,6 +392,56 @@ Conversation history is stored in `st.session_state.messages` as a list of `{"ro
 ### On-Behalf-Of Token (RFC 8693)
 
 When the AI agent performs downstream calls on behalf of the authenticated user, it returns an `obo_token` — a delegated JWT scoped to the agent. The chat page surfaces this token in a collapsible expander under each agent response so users and developers can inspect it. Only the current turn's token is shown; tokens are not persisted in conversation history.
+
+---
+
+## Observability
+
+Application logs and Streamlit/framework logs are emitted as single-line JSON so they can be shipped directly to Loki or another log aggregator.
+
+### Structured log fields
+
+- `timestamp`
+- `service`
+- `environment`
+- `level` / `severity`
+- `logger`
+- `module`
+- `method` / `function`
+- `line`
+- `host` / `hostname`
+- `host_ip`
+- `process`, `process_name`
+- `thread`, `thread_name`
+- `request_id`
+- `client_ip`
+- `request_path`
+- `message`
+
+Any custom `logging` extras are preserved under `extra`.
+
+### Example log line
+
+```json
+{
+  "timestamp": "2026-04-03T04:31:52.841613+00:00",
+  "service": "verify-vault-web-app",
+  "environment": "development",
+  "host": "verify-vault-7c98f7b9bc-fx8nm",
+  "host_ip": "10.42.1.17",
+  "request_id": "4f2d50d8-3552-4d47-b5d7-d07fca5d4b31",
+  "client_ip": "203.0.113.24",
+  "request_path": "/",
+  "level": "INFO",
+  "logger": "verify_vault.app",
+  "module": "app",
+  "method": "<module>",
+  "line": 35,
+  "message": "Authenticated session detected; redirecting to landing page"
+}
+```
+
+Query parameters are intentionally excluded from `request_path` so OAuth codes and other sensitive values are not written to logs.
 
 ---
 

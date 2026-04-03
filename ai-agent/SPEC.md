@@ -166,6 +166,21 @@ Log format:
 JSON structured logs
 ```
 
+Standard fields:
+
+- timestamp
+- level
+- logger
+- hostname
+- host_ip
+- module
+- function or method name
+- line number
+- request_id
+- http_method
+- path
+- client_ip
+
 Log events:
 
 | Event | Description |
@@ -183,7 +198,7 @@ Sensitive fields excluded:
 - obo token
 - vault token
 
-The runtime must also log that the actor token file path was used, that the OBO exchange was attempted or completed, and that the resulting OBO token was produced for the runtime flow.
+The runtime must also log that the actor token file path was used, that the OBO exchange was attempted or completed, and that the resulting OBO token was produced for the runtime flow without logging the token value itself.
 
 ## High-Level Processing Flow
 
@@ -196,4 +211,3 @@ The runtime must also log that the actor token file path was used, that the OBO 
 7. Log exchange and cache activity according to the structured logging requirements.
 8. Execute the normal LangChain chat and tool flow.
 9. Stream plain-text chunks to the caller using `StreamingResponse(generate(), media_type="text/plain")`.
-

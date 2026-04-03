@@ -19,6 +19,18 @@ module "common" {
   cluster_service_cidr = var.aws_eks_cluster_service_cidr
 }
 
+module "observability" {
+  source = "./modules/observability"
+
+  loki_values_path       = "${path.root}/config/observability/loki-values.yaml"
+  prometheus_values_path = "${path.root}/config/observability/prometheus-values.yaml"
+  promtail_values_path   = "${path.root}/config/observability/promtail-values.yaml"
+
+  depends_on = [
+    module.common,
+  ]
+}
+
 module "edr" {
   source = "./modules/edr"
 

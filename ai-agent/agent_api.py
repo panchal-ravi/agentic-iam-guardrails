@@ -12,13 +12,22 @@ from agent_runtime import AgentRuntime
 from config import Settings, load_settings
 from errors import AppError
 from identity import OboTokenService
-from logging_utils import log_event
+from logging_utils import (
+    bind_log_context,
+    build_uvicorn_log_config,
+    log_event,
+    reset_log_context,
+)
 from models import AgentTokensResponse, ChatRequest
 from security import extract_bearer_token, validate_access_token
 from tools import TOOLS
 
 SETTINGS = load_settings()
 LOGGER = logging.getLogger("agent_api")
+
+
+def _get_client_ip(request: Request) -> str | None:
+    return request.client.host if request.client is not None else None
 
 
 def _build_agent_runtime(settings: Settings) -> AgentRuntime:
@@ -66,26 +75,36 @@ def create_app(
     async def request_logging_middleware(request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
         request.state.request_id = request_id
-        log_event(
-            LOGGER,
-            "request_received",
+        request.state.client_ip = _get_client_ip(request)
+        context_token = bind_log_context(
             request_id=request_id,
             path=request.url.path,
-            method=request.method,
+            http_method=request.method,
+            client_ip=request.state.client_ip,
         )
-        response = await call_next(request)
-        response.headers["X-Request-ID"] = request_id
-        if request.url.path != "/v1/agent/query" and not isinstance(
-            response, StreamingResponse
-        ):
+        try:
             log_event(
                 LOGGER,
-                "response_sent",
+                "request_received",
                 request_id=request_id,
                 path=request.url.path,
-                status_code=response.status_code,
+                method=request.method,
             )
-        return response
+            response = await call_next(request)
+            response.headers["X-Request-ID"] = request_id
+            if request.url.path != "/v1/agent/query" and not isinstance(
+                response, StreamingResponse
+            ):
+                log_event(
+                    LOGGER,
+                    "response_sent",
+                    request_id=request_id,
+                    path=request.url.path,
+                    status_code=response.status_code,
+                )
+            return response
+        finally:
+            reset_log_context(context_token)
 
     @app.exception_handler(AppError)
     async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
@@ -128,6 +147,8 @@ def create_app(
             obo_token=obo_token,
             request_id=request.state.request_id,
             request_path=request.url.path,
+            request_method=request.method,
+            client_ip=request.state.client_ip,
         )
 
     @app.get("/v1/agent/tokens", response_model=AgentTokensResponse)
@@ -157,4 +178,10 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host=SETTINGS.host, port=SETTINGS.port)
+    uvicorn.run(
+        app,
+        host=SETTINGS.host,
+        port=SETTINGS.port,
+        log_level=SETTINGS.log_level.lower(),
+        log_config=build_uvicorn_log_config(SETTINGS.log_level),
+    )

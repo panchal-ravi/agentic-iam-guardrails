@@ -194,7 +194,7 @@ def perform_token_exchange(
         "obo_token_exchange_completed",
         request_id=request_id,
         expiry_time=expiry_time,
-        obo_token=obo_token,
+        obo_token_present=True,
     )
     return obo_token, expiry_time
 
@@ -269,7 +269,7 @@ class OboTokenService:
                 request_id=request_id,
                 cache_key=cache_key,
                 expiry_time=cached_entry.expiry_time,
-                obo_token=cached_entry.token,
+                obo_token_present=True,
             )
             return cached_entry.token
 
@@ -288,7 +288,7 @@ class OboTokenService:
                     request_id=request_id,
                     cache_key=cache_key,
                     expiry_time=cached_entry.expiry_time,
-                    obo_token=cached_entry.token,
+                    obo_token_present=True,
                 )
                 return cached_entry.token
 

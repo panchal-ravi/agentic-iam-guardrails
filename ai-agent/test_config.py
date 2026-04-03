@@ -39,16 +39,23 @@ def test_load_settings_logs_all_configured_values(monkeypatch, tmp_path, caplog)
     assert len(caplog.records) == 1
 
     payload = json.loads(caplog.records[0].getMessage())
-    assert payload == {
-        "actor_token_path": str(actor_token_path),
-        "event": "settings_loaded",
-        "host": "127.0.0.1",
-        "log_level": "DEBUG",
-        "model": "openai:gpt-5.4",
-        "bypass_auth_token_exchange": True,
-        "obo_role_name": "runtime-role",
-        "port": 9000,
-        "timestamp": payload["timestamp"],
-        "token_exchange_timeout_seconds": 42.5,
-        "token_exchange_url": "https://example.test/v1/identity/obo-token",
-    }
+    assert payload["actor_token_path"] == str(actor_token_path)
+    assert payload["event"] == "settings_loaded"
+    assert payload["host"] == "127.0.0.1"
+    assert payload["log_level"] == "DEBUG"
+    assert payload["model"] == "openai:gpt-5.4"
+    assert payload["bypass_auth_token_exchange"] is True
+    assert payload["obo_role_name"] == "runtime-role"
+    assert payload["port"] == 9000
+    assert payload["token_exchange_timeout_seconds"] == 42.5
+    assert payload["token_exchange_url"] == "https://example.test/v1/identity/obo-token"
+    assert payload["level"] == "INFO"
+    assert payload["logger"] == "config"
+    assert payload["hostname"]
+    assert "host_ip" in payload
+    assert payload["module"] == "config"
+    assert payload["function"] == "load_settings"
+    assert payload["method_name"] == "load_settings"
+    assert isinstance(payload["line_number"], int)
+    assert payload["process_id"] > 0
+    assert payload["timestamp"]

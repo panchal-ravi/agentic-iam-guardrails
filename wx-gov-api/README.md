@@ -40,6 +40,8 @@ These variables are used by the API:
 - `GUARDRAIL_BASE_URL`: optional override for the guardrails base URL.
 - `VERIFY_SSL`: optional SSL verification toggle. Leave as `true` unless you intentionally need otherwise.
 - `LOG_LEVEL`: optional log level for JSON logs. Defaults to `INFO`.
+- `LOG_SERVICE_NAME` or `OTEL_SERVICE_NAME`: optional override for the `service` field in structured logs.
+- `HOST_IP`: optional override for the `host_ip` field in structured logs when automatic resolution is not suitable.
 - `PORT`: optional API server port. Defaults to `8000`.
 
 ## Run without Docker
@@ -57,14 +59,28 @@ export PORT=8000
 uv run uvicorn ai_guardrails_api:app --host 0.0.0.0 --port "${PORT}"
 ```
 
-The API emits structured JSON logs to stdout. Each log includes at least:
+The API emits structured JSON logs to stdout. Application logs and Uvicorn lifecycle/access logs share the same JSON envelope so they can be shipped directly to Loki. Each log includes at least:
 
+- `level`
 - `request_id`
 - `event`
 - `timestamp`
 - `message`
 
 Request IDs are accepted from `X-Request-ID` when provided, or generated automatically and returned in the response headers.
+
+For Loki-friendly aggregation, every log record also includes standard runtime metadata:
+
+- `level` and `severity`: normalized log level
+- `service`: service name, defaulting to `wx-gov-api`
+- `logger`: Python logger name
+- `host_name`: container or node hostname
+- `host_ip`: resolved host IPv4 address when available
+- `module`: Python module emitting the log
+- `function`: Python function/method emitting the log
+- `line`: source line number
+- `process_id`: OS process id
+- `thread_name`: Python thread name
 
 For request-scoped application logs, the standard fields are:
 
@@ -80,6 +96,14 @@ Completion and error events also include:
 
 - `status_code`: HTTP status returned or surfaced by the handler
 - `duration_ms`: total request processing time in milliseconds for request lifecycle logs
+
+Uvicorn access logs also include:
+
+- `client_ip`: client address reported by Uvicorn
+- `method`: HTTP method
+- `path`: request path as logged by Uvicorn
+- `http_version`: negotiated HTTP version
+- `status_code`: response status code
 
 ## Run with Docker
 

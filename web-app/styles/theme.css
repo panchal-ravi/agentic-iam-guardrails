@@ -334,21 +334,6 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--ibm-blue) !important;
 }
 
-.premium-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 12px;
-  margin-bottom: 18px;
-  border-radius: 999px;
-  background: var(--control-bg);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
 .premium-hero-title {
   font-size: clamp(3rem, 5vw, 5.7rem);
   line-height: 0.96;

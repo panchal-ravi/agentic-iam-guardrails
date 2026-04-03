@@ -2,23 +2,21 @@
 
 import base64
 import json
+import uuid
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from auth.session import get_access_token, get_user_info, logout
+from components.html_embed import render_html_fragment
 
 
 def _copy_to_clipboard_button(text: str) -> None:
-    """Render an IBM Carbon-styled copy-to-clipboard button inside a components.html iframe.
-
-    The token is embedded in a <script> block (not an HTML attribute) to avoid
-    quote-escaping issues. JWTs only contain base64url chars so backtick embedding is safe.
-    """
-    components.html(
+    """Render an IBM Carbon-styled copy-to-clipboard button."""
+    button_id = f"copy-btn-{uuid.uuid4().hex}"
+    render_html_fragment(
         f"""
-        <button id="copy-btn"
-            onclick="copyToken()"
+        <button id="{button_id}"
+            type="button"
             style="
                 background-color: transparent;
                 color: #0f62fe;
@@ -32,35 +30,49 @@ def _copy_to_clipboard_button(text: str) -> None:
             "
         >📋 Copy to clipboard</button>
         <script>
-            var TOKEN = `{text}`;
-            function copyToken() {{
-                if (navigator.clipboard) {{
-                    navigator.clipboard.writeText(TOKEN)
-                        .then(done)
-                        .catch(function() {{ fallback(TOKEN); }});
-                }} else {{
-                    fallback(TOKEN);
+            (() => {{
+                const token = {json.dumps(text)};
+                const button = document.getElementById({json.dumps(button_id)});
+                if (!button || button.dataset.clipboardBound === "true") {{
+                    return;
                 }}
-            }}
-            function fallback(t) {{
-                var ta = document.createElement('textarea');
-                ta.value = t;
-                ta.style.position = 'fixed';
-                ta.style.opacity = '0';
-                document.body.appendChild(ta);
-                ta.focus(); ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-                done();
-            }}
-            function done() {{
-                var btn = document.getElementById('copy-btn');
-                btn.innerText = '✅ Copied!';
-                setTimeout(function() {{ btn.innerText = '📋 Copy to clipboard'; }}, 2000);
-            }}
+
+                button.dataset.clipboardBound = "true";
+
+                const done = () => {{
+                    button.innerText = '✅ Copied!';
+                    window.setTimeout(() => {{
+                        button.innerText = '📋 Copy to clipboard';
+                    }}, 2000);
+                }};
+
+                const fallback = (value) => {{
+                    const textarea = document.createElement('textarea');
+                    textarea.value = value;
+                    textarea.style.position = 'fixed';
+                    textarea.style.opacity = '0';
+                    document.body.appendChild(textarea);
+                    textarea.focus();
+                    textarea.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    done();
+                }};
+
+                button.addEventListener('click', () => {{
+                    if (navigator.clipboard) {{
+                        navigator.clipboard.writeText(token)
+                            .then(done)
+                            .catch(() => fallback(token));
+                    }} else {{
+                        fallback(token);
+                    }}
+                }});
+            }})();
         </script>
         """,
         height=44,
+        width="content",
     )
 
 

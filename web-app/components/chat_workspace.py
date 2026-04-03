@@ -2,9 +2,9 @@
 import re
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 from auth.session import get_access_token, get_user_info
+from components.html_embed import render_html_fragment
 from components.navbar import render_access_token_expander, render_token_contents
 from observability import get_logger
 from services.agent_api import get_agent_tokens, stream_agent_response
@@ -147,11 +147,13 @@ def _render_thinking_indicator(placeholder) -> None:
 
 def _mount_enter_to_send_handler() -> None:
     """Bind Enter-to-send on the chat textarea while preserving Shift+Enter for newlines."""
-    components.html(
+    render_html_fragment(
         """
+        <div aria-hidden="true" style="height:0;overflow:hidden"></div>
         <script>
-        const bindEnterToSend = () => {
-          const doc = window.parent.document;
+        (() => {
+          const bindEnterToSend = () => {
+          const doc = window.document;
           const textarea = [...doc.querySelectorAll("textarea")].find(
             (node) => node.getAttribute("placeholder") === "Message your AI agent…"
           );
@@ -174,13 +176,17 @@ def _mount_enter_to_send_handler() -> None:
               sendButton.click();
             }
           });
-        };
+          };
 
-        bindEnterToSend();
-        new MutationObserver(bindEnterToSend).observe(window.parent.document.body, {
-          childList: true,
-          subtree: true
-        });
+          bindEnterToSend();
+          if (!window.__premiumEnterToSendObserver) {
+            window.__premiumEnterToSendObserver = new MutationObserver(bindEnterToSend);
+            window.__premiumEnterToSendObserver.observe(document.body, {
+              childList: true,
+              subtree: true
+            });
+          }
+        })();
         </script>
         """,
         height=0,
@@ -233,7 +239,6 @@ def _render_left_panel() -> None:
 
     st.markdown(
         """
-        <div class="premium-eyebrow">IBM Verify</div>
         <h1 class="premium-hero-title">
             Secure conversations for your AI runtime.
         </h1>

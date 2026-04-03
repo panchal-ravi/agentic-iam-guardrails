@@ -76,6 +76,18 @@ def _jwt_with_expiry(offset_seconds: int) -> str:
     return b".".join([header, payload, signature]).decode("utf-8")
 
 
+def _structured_log_records(caplog, logger_name: str):
+    structured_logs = []
+    for record in caplog.records:
+        if record.name != logger_name:
+            continue
+        try:
+            structured_logs.append(json.loads(record.getMessage()))
+        except json.JSONDecodeError:
+            continue
+    return structured_logs
+
+
 @pytest.fixture(autouse=True)
 def isolate_runtime(tmp_path, monkeypatch):
     actor_token_path = tmp_path / "actor-token"
@@ -323,7 +335,7 @@ def test_tokens_endpoint_returns_404_on_cache_miss(monkeypatch):
     }
 
 
-def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch):
+def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch, caplog):
     access_token = _jwt_with_expiry(300)
     captured = {}
 
@@ -351,13 +363,14 @@ def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch):
 
     monkeypatch.setattr(identity.urllib.request, "urlopen", fake_urlopen)
 
-    obo_token, expiry_time = identity.perform_token_exchange(
-        subject_token=access_token,
-        actor_token="actor-token",
-        settings=agent_api.SETTINGS,
-        logger=agent_api.LOGGER,
-        request_id="request-1",
-    )
+    with caplog.at_level(logging.INFO, logger="agent_api"):
+        obo_token, expiry_time = identity.perform_token_exchange(
+            subject_token=access_token,
+            actor_token="actor-token",
+            settings=agent_api.SETTINGS,
+            logger=agent_api.LOGGER,
+            request_id="request-1",
+        )
 
     assert obo_token
     assert expiry_time > time.time()
@@ -374,6 +387,14 @@ def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch):
         },
         "timeout": agent_api.SETTINGS.token_exchange_timeout_seconds,
     }
+    completion_logs = [
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("event") == "obo_token_exchange_completed"
+    ]
+    assert completion_logs
+    assert completion_logs[-1]["obo_token_present"] is True
+    assert "obo_token" not in completion_logs[-1]
 
 
 def test_read_request_does_not_trigger_fallback_shell(monkeypatch):
@@ -425,12 +446,22 @@ def test_streaming_response_is_logged_with_agent_text(monkeypatch, caplog):
     assert response.text == "streamed output"
 
     response_logs = [
-        json.loads(record.getMessage())
-        for record in caplog.records
-        if json.loads(record.getMessage()).get("event") == "response_sent"
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("event") == "response_sent"
     ]
     assert response_logs
     assert response_logs[-1]["response_text"] == "streamed output"
+    assert response_logs[-1]["level"] == "INFO"
+    assert response_logs[-1]["logger"] == "agent_api"
+    assert response_logs[-1]["hostname"]
+    assert "host_ip" in response_logs[-1]
+    assert response_logs[-1]["module"] == "agent_runtime"
+    assert response_logs[-1]["function"] == "_stream_text_chunks"
+    assert response_logs[-1]["method_name"] == "_stream_text_chunks"
+    assert isinstance(response_logs[-1]["line_number"], int)
+    assert response_logs[-1]["http_method"] == "POST"
+    assert response_logs[-1]["client_ip"] == "testclient"
 
 
 def test_shell_tool_result_is_logged(monkeypatch, caplog):
@@ -473,15 +504,18 @@ def test_shell_tool_result_is_logged(monkeypatch, caplog):
     assert response.status_code == 200
 
     tool_result_logs = [
-        json.loads(record.getMessage())
-        for record in caplog.records
-        if json.loads(record.getMessage()).get("stage") == "tool_result"
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("stage") == "tool_result"
     ]
     assert tool_result_logs
     assert tool_result_logs[-1]["tool_name"] == "shell"
     assert tool_result_logs[-1]["exit_code"] == 0
     assert tool_result_logs[-1]["stdout_length"] > 0
     assert tool_result_logs[-1]["stderr_length"] == 0
+    assert tool_result_logs[-1]["request_id"]
+    assert tool_result_logs[-1]["http_method"] == "POST"
+    assert tool_result_logs[-1]["client_ip"] == "testclient"
 
 
 def test_create_app_builds_runtime_from_configured_model(monkeypatch):

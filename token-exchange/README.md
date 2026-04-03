@@ -100,6 +100,10 @@ export UVICORN_PORT=9090
 uv run uvicorn api.main:app
 ```
 
+## Logging
+
+The service emits structured JSON logs for both application loggers and uvicorn loggers (`uvicorn`, `uvicorn.error`, `uvicorn.access`), which makes the default output suitable for Loki ingestion. Each record includes standard fields such as `timestamp`, `level`, `logger`, `service`, `hostname`, `host_ip` (when resolvable), callsite metadata (`module`, `func_name`, `lineno`, `process`, `thread_name`), and per-request HTTP context (`request_id`, `http_method`, `http_path`, `http_scheme`, `client_ip`, `user_agent`) when available. Uvicorn access logs also expose structured `client_addr`, `http_method`, `http_path`, `http_version`, and `status_code` fields.
+
 ### Docker
 
 The image sets `UVICORN_HOST=0.0.0.0` and `UVICORN_PORT=8080` as defaults. Override them with `-e` at runtime.

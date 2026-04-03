@@ -76,6 +76,8 @@ The service reads environment variables from the process environment and also lo
 | `PORT` | `8000` | Bind port |
 | `LOG_LEVEL` | `INFO` | Logging level |
 
+Structured logs are emitted as JSON and now include standard operational metadata for aggregation systems such as Loki, including the timestamp, log level, logger name, hostname, resolved host IP (when available), module, function or method name, line number, and per-request fields such as request ID, HTTP method, path, and client IP when a request context exists.
+
 `BYPASS_AUTH_TOKEN_EXCHANGE` is intended for local or test environments where the Agent API should run without security integration. When set to `true`, `POST /v1/agent/query` accepts requests without an `Authorization: Bearer ...` header, skips bearer-token validation, and does not call the token-exchange service. In the same mode, `GET /v1/agent/tokens` returns `404` because no OBO token is exchanged or cached. The default is `false`, which preserves the normal secure flow.
 
 ## Local development with uv
