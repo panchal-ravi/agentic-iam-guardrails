@@ -61,7 +61,9 @@ infra/config/edr/kubequery-values.yaml
 *license*.*
 *scratch.md
 
-documentation/
+documentation/**/*.md
+documentation/agentic-security-deck/
+
 examples/
 .claude/skills/ibm-deck/
 .analysis*.*
@@ -92,6 +94,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+*.pptx
 
 
 # OS
