@@ -26,6 +26,7 @@ spec:
 
         # The "path" parameter for the JWT auth method is passed via this annotation:
         vault.hashicorp.com/auth-config-path: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        vault.hashicorp.com/auth-config-remove-jwt-after-reading: "false"
 
         # The template to fetch the OPA policies and write them to disk       
         vault.hashicorp.com/agent-inject-secret-policies: "opa-policies/data/bundle"

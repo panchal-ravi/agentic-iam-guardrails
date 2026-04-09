@@ -46,7 +46,7 @@ infra/generated/
 *.secret
 *.secrets
 secrets.*
-*secret*.json
+*secret*.json/
 *password*.json
 *credentials*.json
 *token*.json
@@ -95,7 +95,7 @@ dist-ssr
 *.sln
 *.sw?
 *.pptx
-
+*.pdf
 
 # OS
 .DS_Store
