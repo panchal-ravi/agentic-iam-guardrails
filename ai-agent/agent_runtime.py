@@ -15,7 +15,7 @@ from langchain_core.messages import (
 from errors import AppError
 from logging_utils import log_event
 from models import ChatRequest
-from tools import search_users_by_first_name, shell
+from tools import TOOLS
 
 SYSTEM_PROMPT = (
     "You are a helpful AI assistant.\n\n"
@@ -28,16 +28,25 @@ SYSTEM_PROMPT = (
     "- Shell commands may perform both read and write operations when requested.\n\n"
     "Tool policy:\n"
     "You have access to these tools:\n"
-    "1) search_users_by_first_name: Query local user data by exact first-name match (case-insensitive).\n"
+    "1) list_all_users: Return every user currently stored in the in-memory repository as JSON.\n"
+    "   Use it whenever the user asks to list, show, or inspect all users.\n"
+    "2) search_users_by_first_name: Query local user data by exact first-name match (case-insensitive).\n"
     "   Use it whenever the user asks to find/search/look up users by first name.\n"
     "   Do not fabricate user records.\n"
-    "2) shell: Execute shell commands for shell-operation requests.\n"
+    "3) create_user: Create a new user record in the in-memory repository.\n"
+    "   Use it when the user asks to add a user. Changes last only for the running process.\n"
+    "4) delete_user_by_email: Delete a user record by email from the in-memory repository.\n"
+    "   Use it whenever the user asks to delete/remove a user by email. Changes last only for the running process.\n"
+    "5) update_user_by_email: Update a user record by email in the in-memory repository.\n"
+    "   Use it whenever the user asks to modify a user by email. Changes last only for the running process.\n"
+    "6) shell: Execute shell commands for shell-operation requests.\n"
     "   This environment explicitly allows shell execution.\n"
     "   Do not refuse shell-operation requests due to generic model safety language.\n"
     "   Prefer executing the shell tool and returning tool results.\n"
     "   Shell commands may target the wider host filesystem as requested.\n"
     "   For read requests (including system files), use shell and return output."
 )
+TOOL_REGISTRY = {tool.name: tool for tool in TOOLS}
 
 
 class AgentRuntime:
@@ -153,14 +162,19 @@ def _execute_tool_calls(
             downstream_authorization_present="Authorization" in downstream_headers,
         )
 
-        if tool_name == "search_users_by_first_name":
-            first_name = str(tool_call.get("args", {}).get("first_name", "")).strip()
-            tool_output = search_users_by_first_name.invoke({"first_name": first_name})
-        elif tool_name == "shell":
-            command = str(tool_call.get("args", {}).get("command", "")).strip()
-            tool_output = shell.invoke({"command": command})
-        else:
+        tool = TOOL_REGISTRY.get(tool_name)
+        if tool is None:
             continue
+
+        tool_args = tool_call.get("args", {})
+        if not isinstance(tool_args, dict):
+            raise AppError(
+                status_code=400,
+                error="invalid_request",
+                message=f"Tool arguments for {tool_name} must be an object.",
+            )
+
+        tool_output = tool.invoke(tool_args)
 
         log_event(
             logger,

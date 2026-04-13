@@ -14,6 +14,7 @@ os.environ.setdefault("LANGCHAIN_MODEL", "openai:gpt-5-mini")
 import agent_api
 import identity
 import agent_runtime
+import tools
 from agent_runtime import AgentRuntime
 from identity import OboTokenService
 
@@ -92,11 +93,40 @@ def _structured_log_records(caplog, logger_name: str):
 def isolate_runtime(tmp_path, monkeypatch):
     actor_token_path = tmp_path / "actor-token"
     actor_token_path.write_text("actor-token", encoding="utf-8")
+    users_repository_path = tmp_path / "users_repository.json"
+    users_repository_path.write_text(
+        json.dumps(
+            [
+                {
+                    "first_name": "Noah",
+                    "last_name": "Thompson",
+                    "ssn": "714-83-8341",
+                    "phone": "+1-461-252-3994",
+                    "email": "noah.thompson206@example.com",
+                    "credit_card_number": "2391-5556-0490-6326",
+                    "ip_address": "34.226.225.173",
+                    "aws_key": "AKIAEXAMPLE0001",
+                },
+                {
+                    "first_name": "Emma",
+                    "last_name": "Taylor",
+                    "ssn": "111-22-3333",
+                    "phone": "+1-999-111-2222",
+                    "email": "emma.taylor@example.com",
+                    "credit_card_number": "4111-1111-1111-1111",
+                    "ip_address": "10.0.0.2",
+                },
+            ]
+        ),
+        encoding="utf-8",
+    )
 
     monkeypatch.setattr(agent_api.SETTINGS, "actor_token_path", actor_token_path)
     monkeypatch.setattr(agent_api.SETTINGS, "token_exchange_url", "http://token-exchange.local/obo")
     monkeypatch.setattr(agent_api.SETTINGS, "obo_role_name", "test-role")
     monkeypatch.setattr(agent_api.SETTINGS, "bypass_auth_token_exchange", False)
+    monkeypatch.setattr(tools, "USER_REPOSITORY_PATH", users_repository_path)
+    monkeypatch.setattr(tools, "_USER_REPOSITORY", None)
 
     agent_api.app.state.settings = agent_api.SETTINGS
     agent_api.app.state.agent_runtime = AgentRuntime(
@@ -464,6 +494,97 @@ def test_streaming_response_is_logged_with_agent_text(monkeypatch, caplog):
     assert response_logs[-1]["client_ip"] == "testclient"
 
 
+def test_user_repository_tools_mutate_memory_only():
+    on_disk_before = json.loads(tools.USER_REPOSITORY_PATH.read_text(encoding="utf-8"))
+
+    created_user = {
+        "first_name": "Ava",
+        "last_name": "Brown",
+        "ssn": "222-33-4444",
+        "phone": "+1-222-333-4444",
+        "email": "ava.brown@example.com",
+        "credit_card_number": "4222-2222-2222-2222",
+        "ip_address": "10.0.0.3",
+    }
+    created = json.loads(tools.create_user.invoke({"user": created_user}))
+    users_after_create = json.loads(tools.list_all_users.invoke({}))
+
+    assert created == created_user
+    assert [user["email"] for user in users_after_create] == [
+        "noah.thompson206@example.com",
+        "emma.taylor@example.com",
+        "ava.brown@example.com",
+    ]
+    assert json.loads(tools.USER_REPOSITORY_PATH.read_text(encoding="utf-8")) == on_disk_before
+
+
+def test_update_and_delete_user_tools_use_email():
+    updated = json.loads(
+        tools.update_user_by_email.invoke(
+            {
+                "email": "noah.thompson206@example.com",
+                "user": {
+                    "first_name": "Noah",
+                    "last_name": "Thompson",
+                    "ssn": "714-83-8341",
+                    "phone": "+1-000-000-0000",
+                    "email": "noah.updated@example.com",
+                    "credit_card_number": "2391-5556-0490-6326",
+                    "ip_address": "34.226.225.173",
+                    "aws_key": "AKIAEXAMPLE0001",
+                },
+            }
+        )
+    )
+    deleted = json.loads(
+        tools.delete_user_by_email.invoke({"email": "noah.updated@example.com"})
+    )
+    remaining_users = json.loads(tools.list_all_users.invoke({}))
+
+    assert updated["email"] == "noah.updated@example.com"
+    assert updated["phone"] == "+1-000-000-0000"
+    assert deleted["email"] == "noah.updated@example.com"
+    assert [user["email"] for user in remaining_users] == ["emma.taylor@example.com"]
+
+
+def test_non_shell_tool_call_is_executed_through_runtime_registry(monkeypatch):
+    client = TestClient(agent_api.app)
+    access_token = _jwt_with_expiry(300)
+    streaming_llm = FakeStreamingLLM()
+    agent_api.app.state.agent_runtime = AgentRuntime(
+        llm=streaming_llm,
+        llm_with_tools=FakeToolBoundLLM(
+            FakeAssistantResponse(
+                tool_calls=[
+                    {
+                        "id": "call_users_1",
+                        "name": "list_all_users",
+                        "args": {},
+                    }
+                ]
+            )
+        ),
+        logger=agent_api.LOGGER,
+    )
+
+    monkeypatch.setattr(
+        agent_api.app.state.token_service,
+        "perform_token_exchange",
+        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+    )
+
+    response = client.post(
+        "/v1/agent/query",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"messages": [{"role": "user", "content": "list all users"}]},
+    )
+
+    assert response.status_code == 200
+    assert streaming_llm.last_messages is not None
+    assert len(streaming_llm.last_messages) == 4
+    assert json.loads(streaming_llm.last_messages[-1].content)[0]["email"] == "noah.thompson206@example.com"
+
+
 def test_shell_tool_result_is_logged(monkeypatch, caplog):
     client = TestClient(agent_api.app)
     access_token = _jwt_with_expiry(300)
@@ -488,8 +609,8 @@ def test_shell_tool_result_is_logged(monkeypatch, caplog):
         "perform_token_exchange",
         lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
     )
-    monkeypatch.setattr(
-        agent_runtime,
+    monkeypatch.setitem(
+        agent_runtime.TOOL_REGISTRY,
         "shell",
         FakeTool("exit_code: 0\nstdout:\n-rw-r--r-- agent_runtime.py\nstderr:\n"),
     )

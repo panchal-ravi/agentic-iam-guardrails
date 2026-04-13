@@ -54,10 +54,16 @@ The token lookup endpoint validates the incoming `Authorization: Bearer ...` hea
 
 ## Available tools
 
-The agent currently exposes two tools:
+The agent currently exposes these tools:
 
-- `search_users_by_first_name`: reads `users_repository.json` and returns matching users as JSON
+- `list_all_users`: returns all users currently loaded into the in-memory repository as JSON
+- `search_users_by_first_name`: returns users whose first name exactly matches the provided value, case-insensitively
+- `create_user`: adds a new user record to the in-memory repository and returns the created record as JSON
+- `delete_user_by_email`: deletes a user from the in-memory repository by email and returns the deleted record as JSON
+- `update_user_by_email`: updates a user in the in-memory repository by email and returns the updated record as JSON
 - `shell`: executes shell commands from the application directory
+
+User data is initially loaded from `users_repository.json`, but user create, update, and delete operations are kept in memory only for the lifetime of the running process and are not written back to disk.
 
 ## Configuration
 
