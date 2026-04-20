@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The AI Agent Control Plane — Identity, Traceability, Runtime Protection, Observability</title>
+<link rel="preconnect" href="https://fonts.googleapis.com/">
+<link rel="preconnect" href="https://fonts.gstatic.com/" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Source+Sans+3:wght@300;400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --red: #C4283A;
+  --red-light: #D4434F;
+  --bg: #FAFAF8;
+  --bg-warm: #F5F3EF;
+  --bg-code: #F0EDE8;
+  --text: #1A1A1A;
+  --text-body: #3D3D3D;
+  --text-muted: #6B6B6B;
+  --text-caption: #8A8A8A;
+  --border: #E0DCD4;
+  --border-light: #EBE8E2;
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans: 'Source Sans 3', -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --max-w: 820px;
+  /* Pillar accents (scoped) */
+  --pillar-identity: #6B3FA0;
+  --pillar-trace:    #1A6B7A;
+  --pillar-runtime:  #B87333;
+  --pillar-observe:  #2D7A4F;
+  /* Semantic aliases — separate labels so they can diverge without dragging brand tokens */
+  --danger:  var(--red);
+  --success: var(--pillar-observe);
+}
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text-body);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.72;
+  padding: 50px 0 70px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Task 2 adds: progress bar, header, TOC, search overlay, bottom nav, detail panel. */
+
+/* ============================================================
+   SECTION / CHAPTER BASES
+   ============================================================ */
+.chapter { max-width: var(--max-w); margin: 0 auto; padding: 0 28px; }
+.chapter-divider {
+  text-align: center;
+  padding: 80px 28px 48px;
+  border-top: 1px solid var(--border);
+  max-width: var(--max-w);
+  margin: 0 auto;
+  scroll-margin-top: 40px;
+}
+.chapter-divider:first-of-type { border-top: none; padding-top: 0; }
+.chapter-number {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 3px; text-transform: uppercase; color: var(--red);
+  margin-bottom: 12px;
+}
+.chapter-title {
+  font-family: var(--serif); font-size: 36px; font-weight: 800;
+  color: var(--text); line-height: 1.2; margin-bottom: 12px;
+}
+.chapter-subtitle {
+  font-family: var(--sans); font-size: 16px; color: var(--text-muted);
+  font-weight: 300; max-width: 540px; margin: 0 auto;
+}
+.subsection {
+  max-width: var(--max-w); margin: 0 auto; padding: 0 28px 48px;
+  scroll-margin-top: 80px;
+  opacity: 0; transform: translateY(20px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.subsection.revealed { opacity: 1; transform: translateY(0); }
+.subsection-title {
+  font-family: var(--serif); font-size: 24px; font-weight: 700;
+  color: var(--text); margin-bottom: 6px;
+}
+.subsection-desc {
+  font-size: 14px; color: var(--text-muted);
+  margin-bottom: 20px; font-weight: 300;
+}
+
+/* Responsive */
+@media (max-width:900px) {
+  .chapter-title { font-size: 28px; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+  .subsection { opacity: 1; transform: none; }
+  html { scroll-behavior: auto; }
+}
+</style>
+</head>
+<body>
+
+<!-- ===== CHROME SLOT (Task 2) ===== -->
+
+<!-- ===== LANDING SLOT (Task 3) ===== -->
+
+<!-- ===== CHAPTER 1 SLOT (Task 4) ===== -->
+
+<!-- ===== CHAPTER 2 SLOT (Task 5) ===== -->
+
+<!-- ===== CHAPTER 3 SLOT (Task 6) ===== -->
+
+<!-- ===== CHAPTER 4 SLOT (Task 7) ===== -->
+
+<!-- ===== CHAPTER 5 SLOT (Task 8) ===== -->
+
+<!-- ===== CHAPTER 6 SLOT (Task 9) ===== -->
+
+<!-- ===== CHAPTER 7 SLOT (Task 10) ===== -->
+
+<!-- ===== JS SLOT (Task 11) ===== -->
+
+</body>
+</html>

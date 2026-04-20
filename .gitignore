@@ -66,6 +66,7 @@ documentation/agentic-security-deck/
 documentation/*.pptx
 documentation/*.pdf
 documentation/*.html
+!documentation/agent-control-plane.html
 documentation/*.mjs
 documentation/*.json
 documentation/agent_control_plane/assets/
