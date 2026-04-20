@@ -48,7 +48,152 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Task 2 adds: progress bar, header, TOC, search overlay, bottom nav, detail panel. */
+/* PROGRESS BAR */
+#progress-bar { position: fixed; top: 0; left: 0; height: 2px; width: 0%;
+  background: var(--red); z-index: 100; transition: width 0.1s linear; }
+
+/* STICKY HEADER */
+#header { position: fixed; top: 2px; left: 0; right: 0; z-index: 50;
+  height: 48px; background: rgba(250,250,248,0.97);
+  border-bottom: 1px solid var(--border-light);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  display: flex; align-items: center; padding: 0 28px; }
+#header-title { font-family: var(--serif); font-size: 14px; font-weight: 700;
+  color: var(--text); letter-spacing: 0.3px; cursor: pointer; }
+#header-title span { color: var(--red); }
+#header-nav { display: flex; gap: 4px; margin-left: auto; align-items: center; }
+.header-link { font-family: var(--sans); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-caption);
+  padding: 6px 12px; border-radius: 4px; cursor: pointer; border: none;
+  background: transparent; transition: all 0.2s; }
+.header-link:hover { color: var(--text); background: rgba(0,0,0,0.03); }
+.header-link.active { color: var(--red); }
+#toc-toggle, #search-btn { width: 32px; height: 32px; border-radius: 6px;
+  border: 1px solid var(--border); background: white; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; color: var(--text-muted); margin-left: 6px; transition: all 0.2s; }
+#toc-toggle:hover, #search-btn:hover { border-color: var(--red); color: var(--red); }
+
+/* TOC PANEL */
+#toc-panel { position: fixed; top: 50px; right: 0; width: 300px; bottom: 56px;
+  background: white; border-left: 1px solid var(--border-light);
+  z-index: 40; transform: translateX(100%);
+  transition: transform 0.3s ease; overflow-y: auto; padding: 24px 20px; }
+#toc-panel.open { transform: translateX(0); }
+#toc-panel h3 { font-family: var(--serif); font-size: 14px; font-weight: 700;
+  color: var(--text); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.toc-section { margin-bottom: 16px; }
+.toc-section-title { font-family: var(--sans); font-size: 10px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--red); margin-bottom: 6px; }
+.toc-link { display: block; font-size: 13px; color: var(--text-muted);
+  padding: 3px 0 3px 12px; text-decoration: none; border-left: 2px solid transparent;
+  transition: all 0.2s; cursor: pointer; }
+.toc-link:hover { color: var(--text); border-left-color: var(--border); }
+.toc-link.active { color: var(--red); border-left-color: var(--red); font-weight: 600; }
+
+/* SEARCH OVERLAY */
+#search-overlay { position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.4); backdrop-filter: blur(4px);
+  display: none; align-items: flex-start; justify-content: center; padding-top: 100px; }
+#search-overlay.open { display: flex; }
+#search-box { width: 560px; max-width: 90vw; background: white;
+  border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.15); overflow: hidden; }
+#search-input { width: 100%; background: transparent; border: none;
+  border-bottom: 1px solid var(--border-light);
+  padding: 16px 20px; color: var(--text); font-family: var(--mono);
+  font-size: 14px; outline: none; }
+#search-input::placeholder { color: var(--text-caption); }
+#search-results { max-height: 360px; overflow-y: auto; padding: 8px; }
+.search-result { display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+.search-result:hover, .search-result.selected { background: var(--bg-warm); }
+.search-result .sr-type { font-size: 8px; letter-spacing: 1px; text-transform: uppercase;
+  padding: 2px 6px; border-radius: 3px; border: 1px solid; white-space: nowrap;
+  min-width: 48px; text-align: center; font-family: var(--mono); }
+.search-result .sr-name { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+.search-result .sr-desc { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+.search-empty { padding: 20px; text-align: center; color: var(--text-caption); font-size: 13px; }
+
+/* BOTTOM NAV */
+#nav-bar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 45;
+  height: 56px; background: #FAFAF8; border-top: 1px solid #E0DFDB;
+  box-shadow: 0 -2px 12px rgba(0,0,0,0.04);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--sans);
+  transition: transform 0.3s ease, opacity 0.3s ease; }
+#nav-bar.hidden { transform: translateY(100%); opacity: 0; pointer-events: none; }
+.nav-inner { max-width: 960px; width: 100%; display: flex;
+  align-items: center; justify-content: space-between; padding: 0 28px; }
+.nav-btn { display: flex; align-items: center; gap: 6px; background: none;
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px 16px;
+  cursor: pointer; font-family: var(--sans); font-size: 12px; color: var(--text-muted);
+  transition: all 0.2s; min-width: 160px; }
+.nav-btn:hover { border-color: var(--red); color: var(--text); }
+.nav-btn.prev { justify-content: flex-start; }
+.nav-btn.next { justify-content: flex-end; }
+.nav-btn .nav-arrow { font-size: 14px; }
+.nav-btn .nav-label { font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+.nav-btn.disabled { opacity: 0.3; pointer-events: none; }
+.nav-center { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.nav-chapter-label { font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.5px; color: var(--text); transition: all 0.3s ease; }
+.nav-dots { display: flex; gap: 4px; align-items: center; }
+.nav-dot { width: 8px; height: 8px; border-radius: 50%;
+  background: var(--border); cursor: pointer;
+  transition: all 0.3s ease; border: none; padding: 0; }
+.nav-dot:hover { background: var(--text-caption); transform: scale(1.3); }
+.nav-dot.active { background: var(--red); transform: scale(1.2); }
+.nav-dot.chapter-dot { width: 10px; height: 10px; }
+.nav-dot.sub-dot { width: 5px; height: 5px; }
+.nav-dot-sep { width: 1px; height: 12px; background: var(--border); margin: 0 2px; opacity: 0.5; }
+@media (max-width:600px) {
+  .nav-btn .nav-label { display: none; }
+  .nav-btn { min-width: auto; padding: 8px 12px; }
+}
+
+/* DETAIL PANEL */
+#detail { position: fixed; top: 60px; right: 24px; max-width: 360px; width: auto;
+  background: white; border: 1px solid var(--border);
+  border-right: 3px solid var(--red); border-radius: 8px;
+  padding: 16px 20px; z-index: 30; display: flex; flex-direction: column; gap: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  transform: translateX(0); opacity: 1;
+  transition: transform 0.3s ease, opacity 0.25s ease; }
+#detail.empty { transform: translateX(20px); opacity: 0; pointer-events: none; }
+#detail-close { position: absolute; top: 8px; right: 10px;
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; background: var(--bg-warm);
+  border: 1px solid var(--border-light); color: var(--text-caption);
+  font-size: 12px; cursor: pointer; transition: all 0.2s; }
+#detail-close:hover { background: var(--bg-code); color: var(--text); }
+#detail-name { font-family: var(--mono); font-size: 14px; font-weight: 700; padding-right: 28px; }
+#detail-type { font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 3px; border: 1px solid; width: fit-content; }
+#detail-desc { font-size: 13px; color: var(--text-muted); line-height: 1.55; }
+
+/* NODE PILLS (used in chapter content) */
+.node { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px;
+  border-radius: 4px; font-size: 11px; font-family: var(--mono);
+  cursor: pointer; margin: 2px 1px; border: 1px solid; transition: all 0.2s;
+  white-space: nowrap; }
+.node:hover { transform: translateY(-1px); }
+.node-identity { background: rgba(107,63,160,0.06); border-color: rgba(107,63,160,0.25); color: var(--pillar-identity); }
+.node-trace    { background: rgba(26,107,122,0.06); border-color: rgba(26,107,122,0.25); color: var(--pillar-trace); }
+.node-runtime  { background: rgba(184,115,51,0.06); border-color: rgba(184,115,51,0.25); color: var(--pillar-runtime); }
+.node-observe  { background: rgba(45,122,79,0.06); border-color: rgba(45,122,79,0.25); color: var(--pillar-observe); }
+.node-brand    { background: rgba(196,40,58,0.06); border-color: rgba(196,40,58,0.25); color: var(--red); }
+body.has-selection .node.dimmed { opacity: 0.15; }
+
+/* SVG keyframes */
+@keyframes svg-shimmer { 0%,100% { opacity: 0.85; } 50% { opacity: 1; } }
+@keyframes svg-pulse   { 0%,100% { opacity: 0.7; }  50% { opacity: 1; } }
+@keyframes svg-trace   { 0% { stroke-dashoffset: 100; } 100% { stroke-dashoffset: 0; } }
+@keyframes svg-flow    { 0% { offset-distance: 0%; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { offset-distance: 100%; opacity: 0; } }
+.svg-diagram { max-width: 680px; margin: 0 auto 20px; }
+.svg-diagram svg { width: 100%; height: auto; display: block; overflow: visible; }
+.svg-diagram [data-id] { cursor: pointer; transition: opacity 0.3s; }
+.svg-diagram [data-id]:hover { opacity: 0.75; }
 
 /* ============================================================
    SECTION / CHAPTER BASES
@@ -107,7 +252,66 @@ body {
 </head>
 <body>
 
-<!-- ===== CHROME SLOT (Task 2) ===== -->
+<!-- PROGRESS BAR -->
+<div id="progress-bar"></div>
+
+<!-- STICKY HEADER -->
+<div id="header">
+  <div id="header-title" onclick="window.scrollTo({top:0,behavior:'smooth'})"><span>AI Agent</span> Control Plane</div>
+  <div id="header-nav">
+    <button class="header-link" data-section="landing" onclick="scrollToSection('landing')">Home</button>
+    <button class="header-link" data-section="risk" onclick="scrollToSection('risk')">Risk</button>
+    <button class="header-link" data-section="control-plane" onclick="scrollToSection('control-plane')">Control Plane</button>
+    <button class="header-link" data-section="identity" onclick="scrollToSection('identity')">Identity</button>
+    <button class="header-link" data-section="traceability" onclick="scrollToSection('traceability')">Traceability</button>
+    <button class="header-link" data-section="runtime" onclick="scrollToSection('runtime')">Runtime</button>
+    <button class="header-link" data-section="observability" onclick="scrollToSection('observability')">Observability</button>
+    <button class="header-link" data-section="readiness" onclick="scrollToSection('readiness')">Next</button>
+    <button id="search-btn" onclick="openSearch()" title="Search (/)">⌕</button>
+    <button id="toc-toggle" onclick="toggleTOC()" title="Table of Contents">☰</button>
+  </div>
+</div>
+
+<!-- TOC PANEL -->
+<div id="toc-panel">
+  <h3>Table of Contents</h3>
+  <div id="toc-content"></div>
+</div>
+
+<!-- SEARCH OVERLAY -->
+<div id="search-overlay">
+  <div id="search-box">
+    <input id="search-input" type="text" placeholder="Search concepts, identities, controls..." autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<!-- DETAIL PANEL -->
+<div id="detail" class="empty">
+  <button id="detail-close" onclick="clearSelection()">×</button>
+  <div id="detail-name"></div>
+  <div id="detail-type"></div>
+  <div id="detail-desc"></div>
+  <div id="detail-links"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<div id="nav-bar" class="hidden">
+  <div class="nav-inner">
+    <button id="nav-prev" class="nav-btn prev" onclick="navPrev()">
+      <span class="nav-arrow">←</span>
+      <span class="nav-label" id="nav-prev-label"></span>
+    </button>
+    <div class="nav-center">
+      <div class="nav-chapter-label" id="nav-chapter-label">The AI Agent Control Plane</div>
+      <div class="nav-dots" id="nav-dots"></div>
+    </div>
+    <button id="nav-next" class="nav-btn next" onclick="navNext()">
+      <span class="nav-label" id="nav-next-label"></span>
+      <span class="nav-arrow">→</span>
+    </button>
+  </div>
+</div>
 
 <!-- ===== LANDING SLOT (Task 3) ===== -->
 
