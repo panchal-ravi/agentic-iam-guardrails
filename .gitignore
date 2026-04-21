@@ -63,6 +63,10 @@ infra/config/edr/kubequery-values.yaml
 
 documentation/**/*.md
 documentation/agentic-security-deck/
+documentation/agent-security-deck.html
+documentation/agent_control_plane/assets
+scratch/
+docs/
 
 examples/
 .claude/skills/ibm-deck/

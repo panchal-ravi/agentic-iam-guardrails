@@ -16,20 +16,21 @@ spec:
           request_handle:logInfo("Inbound Request")
           -- Log all key/value pairs from dynamicMetadata
           local stream_info = request_handle:streamInfo()
-
           local dynamic_metadata = stream_info:dynamicMetadata()
           local trust_domain = nil
-          if dynamic_metadata and dynamic_metadata["consul"] then
-            local consul_ns = dynamic_metadata["consul"]
-            if type(consul_ns) == "table" and consul_ns["trust-domain"] then
-              trust_domain = tostring(consul_ns["trust-domain"])
-            end
+          local datacenter = nil
+          if dynamic_metadata and dynamic_metadata:get("consul") then
+            local consul_ns = dynamic_metadata:get("consul")
+            trust_domain = tostring(consul_ns["trust-domain"])
+            datacenter = tostring(consul_ns["datacenter"])
           end
 
           request_handle:logInfo("Trust Domain: " .. tostring(trust_domain))
+          local opaservice = "opa-service.opa." .. datacenter .. ".internal." .. trust_domain
+          local request_id = request_handle:headers():get("x-request-id") or request_handle:headers():get("X-Request-ID")
 
           
-          local body = request_handle:body()
+          local body = request_handle:body(true)
           local body_str = body:getBytes(0, body:length())
           request_handle:logInfo("Inbound Request Body: " .. body_str)
 
@@ -37,7 +38,7 @@ spec:
           local headers = {
             [":method"] = "POST",
             [":path"] = "/v1/data/app/security",
-            [":authority"] = "opa-service.opa.svc.cluster.local",
+            [":authority"] = opaservice,
             ["content-type"] = "application/json"
           }
 
@@ -66,7 +67,7 @@ spec:
           local opa_body = '{"input":"' .. encoded_body .. '"}'
 
           local response_headers, response_body = request_handle:httpCall(
-            "opa-service-cluster", -- cluster name
+            opaservice, -- cluster name
             headers,
             opa_body,
             5000 -- timeout in milliseconds
