@@ -1555,7 +1555,253 @@ aud:   "loan-api.bank.internal"</pre>
   </details>
 </section>
 
-<!-- ===== JS SLOT (Task 11) ===== -->
+<script>
+// -------- Progress bar --------
+function updateProgress() {
+  const h = document.documentElement.scrollHeight - window.innerHeight;
+  const pct = h > 0 ? (window.scrollY / h) * 100 : 0;
+  document.getElementById('progress-bar').style.width = pct + '%';
+}
+window.addEventListener('scroll', updateProgress);
+
+// -------- Smooth-scroll helpers --------
+function scrollToSection(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function scrollToEl(id) {
+  const el = document.getElementById(id);
+  if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'start' }); closeTOC(); }
+}
+
+// -------- TOC: build from DOM --------
+function buildTOC() {
+  const tocContent = document.getElementById('toc-content');
+  const sections = document.querySelectorAll('.chapter-divider[data-section]');
+  let html = '';
+  sections.forEach(sec => {
+    const title = sec.querySelector('.chapter-title').textContent;
+    html += '<div class="toc-section"><div class="toc-section-title">' + title + '</div>';
+    let el = sec.nextElementSibling;
+    while (el && !el.classList.contains('chapter-divider')) {
+      if (el.classList.contains('subsection') && el.dataset.sub) {
+        html += '<a class="toc-link" data-toc-id="' + el.id + '" onclick="scrollToEl(\'' + el.id + '\')">' + el.dataset.sub + '</a>';
+      }
+      el = el.nextElementSibling;
+    }
+    html += '</div>';
+  });
+  tocContent.innerHTML = html;
+}
+function toggleTOC() { document.getElementById('toc-panel').classList.toggle('open'); }
+function closeTOC()  { document.getElementById('toc-panel').classList.remove('open'); }
+
+// -------- Reveal observer --------
+const revealObs = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('revealed'); });
+}, { threshold: 0.1 });
+document.querySelectorAll('.subsection').forEach(el => revealObs.observe(el));
+
+// -------- TOC + header link active-state observer --------
+const tocObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    const link = document.querySelector('.toc-link[data-toc-id="' + e.target.id + '"]');
+    if (link) { if (e.isIntersecting) link.classList.add('active'); else link.classList.remove('active'); }
+    if (e.isIntersecting) {
+      const sec = e.target.closest('[data-section]') || e.target;
+      const secId = sec.dataset ? sec.dataset.section : null;
+      if (secId) {
+        document.querySelectorAll('.header-link').forEach(l => l.classList.remove('active'));
+        const btn = document.querySelector('.header-link[data-section="' + secId + '"]');
+        if (btn) btn.classList.add('active');
+      }
+    }
+  });
+}, { threshold: 0.2, rootMargin: '-50px 0px -50% 0px' });
+document.querySelectorAll('.subsection, .chapter-divider').forEach(el => tocObs.observe(el));
+
+// -------- Bottom nav --------
+const navChapters = [
+  { id: 'landing',       label: 'Overview',         num: 0 },
+  { id: 'risk',          label: 'The New Risk',     num: 1 },
+  { id: 'control-plane', label: 'Control Plane',    num: 2 },
+  { id: 'identity',      label: 'Identity',         num: 3 },
+  { id: 'traceability',  label: 'Traceability',     num: 4 },
+  { id: 'runtime',       label: 'Runtime',          num: 5 },
+  { id: 'observability', label: 'Observability',    num: 6 },
+  { id: 'readiness',     label: 'Next Steps',       num: 7 }
+];
+const navItems = [];
+navChapters.forEach(ch => {
+  navItems.push({ id: ch.id, label: ch.label, chapter: ch, isChapter: true });
+  document.querySelectorAll('.subsection[id^="' + (ch.id === 'control-plane' ? 'cp-' : ch.id.slice(0,5) + (ch.id.length>5?'-':'')) + '"]').forEach(sub => {
+    navItems.push({ id: sub.id, label: sub.dataset.sub || sub.id, chapter: ch, isChapter: false });
+  });
+});
+// Fallback: include any subsection whose id starts with chapter id verbatim
+navChapters.forEach(ch => {
+  document.querySelectorAll('.subsection[id^="' + ch.id + '-"]').forEach(sub => {
+    if (!navItems.some(i => i.id === sub.id)) {
+      navItems.push({ id: sub.id, label: sub.dataset.sub || sub.id, chapter: ch, isChapter: false });
+    }
+  });
+});
+// Sort navItems by DOM order
+navItems.sort((a, b) => {
+  const ea = document.getElementById(a.id), eb = document.getElementById(b.id);
+  if (!ea || !eb) return 0;
+  return (ea.compareDocumentPosition(eb) & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+});
+
+let currentNavIdx = 0;
+const navBar = document.getElementById('nav-bar');
+const navChapterLabel = document.getElementById('nav-chapter-label');
+const navDotsEl = document.getElementById('nav-dots');
+const navPrevBtn = document.getElementById('nav-prev');
+const navNextBtn = document.getElementById('nav-next');
+const navPrevLabel = document.getElementById('nav-prev-label');
+const navNextLabel = document.getElementById('nav-next-label');
+
+let lastChapterId = null;
+navItems.forEach((item, i) => {
+  if (item.isChapter && lastChapterId !== null) {
+    const sep = document.createElement('span'); sep.className = 'nav-dot-sep';
+    navDotsEl.appendChild(sep);
+  }
+  const dot = document.createElement('button');
+  dot.className = 'nav-dot' + (item.isChapter ? ' chapter-dot' : ' sub-dot') + (i === 0 ? ' active' : '');
+  dot.title = item.isChapter ? 'Chapter ' + item.chapter.num + ': ' + item.label : item.label;
+  dot.onclick = () => { const el = document.getElementById(item.id); if (el) el.scrollIntoView({behavior:'smooth',block:'start'}); };
+  navDotsEl.appendChild(dot);
+  lastChapterId = item.chapter.id;
+});
+
+function updateNavBar(idx) {
+  if (idx === currentNavIdx && !navBar.classList.contains('hidden')) return;
+  currentNavIdx = idx;
+  const item = navItems[idx];
+  navChapterLabel.textContent = 'Chapter ' + item.chapter.num + ' — ' + (item.isChapter ? item.chapter.label : item.label);
+  navDotsEl.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+  navPrevBtn.classList.toggle('disabled', idx === 0);
+  navNextBtn.classList.toggle('disabled', idx === navItems.length - 1);
+  navPrevLabel.textContent = idx > 0 ? navItems[idx-1].label : '';
+  navNextLabel.textContent = idx < navItems.length - 1 ? navItems[idx+1].label : '';
+  navBar.classList.remove('hidden');
+}
+function navPrev() { if (currentNavIdx > 0) document.getElementById(navItems[currentNavIdx-1].id).scrollIntoView({behavior:'smooth',block:'start'}); }
+function navNext() { if (currentNavIdx < navItems.length - 1) document.getElementById(navItems[currentNavIdx+1].id).scrollIntoView({behavior:'smooth',block:'start'}); }
+
+const chapterObs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const targetId = e.target.dataset.section || e.target.id;
+      const idx = navItems.findIndex(it => it.id === targetId);
+      if (idx !== -1) updateNavBar(idx);
+    }
+  });
+}, { threshold: 0.1, rootMargin: '-48px 0px -60% 0px' });
+document.querySelectorAll('.chapter-divider[data-section]').forEach(el => chapterObs.observe(el));
+document.querySelectorAll('.subsection').forEach(el => chapterObs.observe(el));
+
+// -------- Search --------
+const searchIndex = [];
+function buildSearchIndex() {
+  document.querySelectorAll('.subsection, .chapter-divider').forEach(el => {
+    const title = el.querySelector('.subsection-title, .chapter-title');
+    if (!title) return;
+    searchIndex.push({
+      id: el.id,
+      name: title.textContent.trim(),
+      type: el.classList.contains('chapter-divider') ? 'CHAPTER' : 'SECTION',
+      desc: (el.querySelector('.subsection-desc, .chapter-subtitle')?.textContent || '').trim().slice(0, 140)
+    });
+  });
+  document.querySelectorAll('details.repo-card summary').forEach(s => {
+    const code = s.querySelector('code');
+    if (!code) return;
+    const details = s.parentElement;
+    searchIndex.push({
+      id: details.id || code.textContent,
+      name: code.textContent,
+      type: 'REPO',
+      desc: (details.querySelector('.repo-body')?.textContent || '').trim().slice(0, 140),
+      targetEl: details
+    });
+  });
+}
+buildSearchIndex();
+
+const searchOverlay = document.getElementById('search-overlay');
+const searchInput   = document.getElementById('search-input');
+const searchResults = document.getElementById('search-results');
+let searchIdx = -1;
+
+function openSearch() { searchOverlay.classList.add('open'); searchInput.value=''; searchInput.focus(); renderSearchResults(''); }
+function closeSearch() { searchOverlay.classList.remove('open'); searchIdx = -1; }
+
+function renderSearchResults(query) {
+  const q = query.toLowerCase().trim();
+  if (!q) { searchResults.innerHTML = '<div class="search-empty">Type to search chapters, sections, repo pointers…</div>'; return; }
+  const results = searchIndex.filter(r => r.name.toLowerCase().includes(q) || r.desc.toLowerCase().includes(q));
+  if (!results.length) { searchResults.innerHTML = '<div class="search-empty">No results</div>'; return; }
+  searchResults.innerHTML = results.slice(0,20).map((r,i) =>
+    '<div class="search-result' + (i === searchIdx ? ' selected' : '') + '" data-id="' + r.id + '">' +
+    '<span class="sr-type" style="color:var(--red);border-color:var(--red)">' + r.type + '</span>' +
+    '<div><div class="sr-name">' + r.name + '</div><div class="sr-desc">' + r.desc + '</div></div></div>'
+  ).join('');
+  searchResults.querySelectorAll('.search-result').forEach(el => {
+    el.onclick = () => { closeSearch(); const t = document.getElementById(el.dataset.id); if (t) t.scrollIntoView({behavior:'smooth',block:'start'}); };
+  });
+}
+searchInput.addEventListener('input', () => { searchIdx = -1; renderSearchResults(searchInput.value); });
+searchInput.addEventListener('keydown', e => {
+  const items = searchResults.querySelectorAll('.search-result');
+  if (e.key === 'ArrowDown') { e.preventDefault(); searchIdx = Math.min(searchIdx+1, items.length-1); renderSearchResults(searchInput.value); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); searchIdx = Math.max(searchIdx-1, 0); renderSearchResults(searchInput.value); }
+  else if (e.key === 'Enter' && items[searchIdx]) items[searchIdx].click();
+});
+searchOverlay.addEventListener('click', e => { if (e.target === searchOverlay) closeSearch(); });
+
+// -------- Detail panel (node pills) --------
+const detailEl   = document.getElementById('detail');
+const detailName = document.getElementById('detail-name');
+const detailType = document.getElementById('detail-type');
+const detailDesc = document.getElementById('detail-desc');
+
+function clearSelection() {
+  document.body.classList.remove('has-selection');
+  document.querySelectorAll('.node').forEach(n => n.classList.remove('active','dimmed'));
+  detailEl.classList.add('empty');
+}
+document.addEventListener('click', e => {
+  const node = e.target.closest('.node');
+  if (node) {
+    e.stopPropagation();
+    document.body.classList.add('has-selection');
+    document.querySelectorAll('.node').forEach(n => n.classList.toggle('dimmed', n !== node));
+    node.classList.add('active');
+    detailName.textContent = node.dataset.id || node.textContent;
+    detailType.textContent = node.dataset.type || 'CONCEPT';
+    detailDesc.textContent = node.dataset.desc || '';
+    const color = getComputedStyle(node).color;
+    detailName.style.color = color;
+    detailType.style.color = color;
+    detailType.style.borderColor = color;
+    detailEl.style.borderRightColor = color;
+    detailEl.classList.remove('empty');
+  } else if (!e.target.closest('#detail') && !e.target.closest('#search-overlay') && !e.target.closest('#toc-panel')) {
+    clearSelection();
+  }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeSearch(); closeTOC(); clearSelection(); }
+  if (e.key === '/' && document.activeElement.tagName !== 'INPUT') { e.preventDefault(); openSearch(); }
+});
+
+// -------- Init --------
+buildTOC();
+updateProgress();
+</script>
 
 </body>
 </html>
