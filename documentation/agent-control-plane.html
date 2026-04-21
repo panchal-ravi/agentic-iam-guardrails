@@ -355,6 +355,50 @@ body.has-selection .node.dimmed { opacity: 0.15; }
   padding: 8px 10px; margin-top: 10px; line-height: 1.5; overflow-x: auto; }
 @media (max-width:900px) { .id-grid { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width:600px) { .id-grid { grid-template-columns: 1fr; } }
+
+/* PILLAR CHAPTER SHELL */
+.pillar-eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 3px;
+  text-transform: uppercase; margin-bottom: 8px; }
+.pillar-eyebrow.p-identity { color: var(--pillar-identity); }
+.pillar-eyebrow.p-trace    { color: var(--pillar-trace); }
+.pillar-eyebrow.p-runtime  { color: var(--pillar-runtime); }
+.pillar-eyebrow.p-observe  { color: var(--pillar-observe); }
+
+/* Before/after panels */
+.before-after { display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  margin-bottom: 24px; }
+.before { background: #FFF5F4; border-left: 3px solid var(--danger);
+  border-radius: 0 8px 8px 0; padding: 16px 18px; }
+.after  { background: #F3FAF5; border-left: 3px solid var(--success);
+  border-radius: 0 8px 8px 0; padding: 16px 18px; }
+.ba-label { font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; margin-bottom: 8px; color: var(--text-muted); }
+.before .ba-label { color: var(--danger); }
+.after .ba-label  { color: var(--success); }
+.before h4, .after h4 { font-family: var(--serif); font-size: 15px;
+  color: var(--text); margin-bottom: 8px; }
+.before ul, .after ul { font-size: 13px; color: var(--text-body);
+  line-height: 1.65; padding-left: 18px; }
+.before li, .after li { margin-bottom: 4px; }
+@media (max-width:900px) { .before-after { grid-template-columns: 1fr; } }
+
+/* Expandable repo-accordion */
+details.repo-card { background: white; border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 18px; margin-bottom: 10px; cursor: pointer; }
+details.repo-card summary { list-style: none; position: relative; outline: none;
+  font-family: var(--sans); font-weight: 600; font-size: 14px; color: var(--text); }
+details.repo-card summary::-webkit-details-marker, details.repo-card summary::marker { display: none; }
+details.repo-card summary::after { content: '▸'; position: absolute; right: 0; top: 0;
+  color: var(--text-caption); transition: transform 0.2s ease; }
+details.repo-card[open] summary::after { transform: rotate(90deg); }
+details.repo-card summary code { font-family: var(--mono); font-size: 12px;
+  color: var(--pillar-identity); background: rgba(107,63,160,0.08);
+  padding: 2px 6px; border-radius: 3px; margin-right: 8px; }
+details.repo-card .repo-body { margin-top: 10px; font-size: 13px;
+  color: var(--text-body); line-height: 1.6; }
+details.repo-card .repo-body ul { padding-left: 20px; margin-top: 6px; }
+details.repo-card .repo-body code { font-family: var(--mono); font-size: 12px;
+  background: var(--bg-code); padding: 1px 5px; border-radius: 3px; color: var(--red); }
 </style>
 </head>
 <body>
@@ -820,7 +864,173 @@ aud:   "loan-api.bank.internal"</pre>
   <p style="font-size:14px;color:var(--text-muted);line-height:1.6;padding:12px 16px;background:var(--bg-warm);border-radius:6px;border-left:3px solid var(--pillar-runtime)"><strong style="color:var(--text)">In practice.</strong> Alice logs into the banking app. Separately, the loan-status agent receives its identity from Vault. When the agent calls the Loan API on Alice's behalf, both credentials combine into one — so the API knows <em>who asked</em> and <em>which agent carried it out</em>.</p>
 </section>
 
-<!-- ===== CHAPTER 3 SLOT (Task 6) ===== -->
+<!-- ===== TASK 6 · CHAPTER 3 — PILLAR 1 · IDENTITY ===== -->
+<div class="chapter-divider" id="identity" data-section="identity">
+  <div class="chapter-number">Chapter Three</div>
+  <div class="pillar-eyebrow p-identity">Pillar 1 · Identity</div>
+  <h2 class="chapter-title">It all starts with unique identity</h2>
+  <p class="chapter-subtitle">Every agent replica gets its own signed, verifiable identity — automatically, with zero application code changes.</p>
+</div>
+
+<section class="subsection" id="identity-problem" data-sub="The problem">
+  <h3 class="subsection-title">Without unique identity, trust is impossible</h3>
+  <div class="before-after">
+    <div class="before">
+      <div class="ba-label">Without unique identity</div>
+      <h4>Both replicas log as "LoanAgent"</h4>
+      <ul>
+        <li>Replica A approves a loan. Replica B declines it. Logs can't tell which was which.</li>
+        <li>Impossible to audit which replica acted.</li>
+        <li>Compliance has no actor-level evidence.</li>
+        <li>Downstream trust decisions start from a blind spot.</li>
+      </ul>
+    </div>
+    <div class="after">
+      <div class="ba-label">With the control plane</div>
+      <h4>Two replicas → two signed identities</h4>
+      <ul>
+        <li>Platform bootstrap — each agent inherits platform-native identity automatically.</li>
+        <li>Identity broker mints an OIDC <code style="font-family:var(--mono);background:rgba(45,122,79,0.08);padding:1px 5px;border-radius:3px;color:var(--pillar-observe)">actor_token</code> per replica — unique, short-lived, no static secrets.</li>
+        <li>Every action is attributable: downstream systems verify the token and tie each decision to the exact replica.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="subsection" id="identity-how" data-sub="How it works">
+  <h3 class="subsection-title">Automatic agent identity injection — how it works</h3>
+  <p class="subsection-desc">Four steps. No secrets to manage. No code changes. Every agent replica uniquely identified.</p>
+
+  <div class="svg-diagram" id="svg-identity-injection">
+    <svg viewBox="0 0 680 380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="id-shadow" x="-5%" y="-5%" width="110%" height="120%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.08"/>
+        </filter>
+      </defs>
+
+      <!-- Header row with numbered steps -->
+      <g font-family="JetBrains Mono,monospace" font-size="9" fill="#6B3FA0" font-weight="700" letter-spacing="1.5">
+        <circle cx="100" cy="30" r="12" fill="#6B3FA0"/>
+        <text x="100" y="34" text-anchor="middle" fill="white">1</text>
+        <text x="100" y="58" text-anchor="middle">AGENT STARTS</text>
+        <circle cx="250" cy="30" r="12" fill="#6B3FA0"/>
+        <text x="250" y="34" text-anchor="middle" fill="white">2</text>
+        <text x="250" y="58" text-anchor="middle">AUTHENTICATES</text>
+        <circle cx="400" cy="30" r="12" fill="#6B3FA0"/>
+        <text x="400" y="34" text-anchor="middle" fill="white">3</text>
+        <text x="400" y="58" text-anchor="middle">MINT IDENTITY</text>
+        <circle cx="560" cy="30" r="12" fill="#6B3FA0"/>
+        <text x="560" y="34" text-anchor="middle" fill="white">4</text>
+        <text x="560" y="58" text-anchor="middle">INJECT TOKEN</text>
+      </g>
+
+      <!-- K8s row -->
+      <rect x="20" y="80" width="640" height="120" rx="8" fill="rgba(50,108,229,0.04)" stroke="#326CE5" stroke-width="1" stroke-dasharray="3,3"/>
+      <text x="36" y="100" font-family="JetBrains Mono,monospace" font-size="9" fill="#326CE5" font-weight="700" letter-spacing="2">KUBERNETES</text>
+
+      <g filter="url(#id-shadow)"><rect x="40" y="115" width="130" height="70" rx="8" fill="white" stroke="#326CE5" stroke-width="1.5"/></g>
+      <text x="105" y="135" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#326CE5" font-weight="700">POD</text>
+      <text x="105" y="151" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">ServiceAccount</text>
+      <text x="105" y="167" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">JWT · vault-agent</text>
+
+      <g filter="url(#id-shadow)"><rect x="190" y="115" width="130" height="70" rx="8" fill="white" stroke="#6B3FA0" stroke-width="1.5"/></g>
+      <text x="255" y="135" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6B3FA0" font-weight="700">VAULT · JWT AUTH</text>
+      <text x="255" y="151" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">verifies pod JWT</text>
+      <text x="255" y="168" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#6B6B6B">user_claim: pod/name</text>
+
+      <g filter="url(#id-shadow)"><rect x="340" y="115" width="130" height="70" rx="8" fill="white" stroke="#6B3FA0" stroke-width="1.5"/></g>
+      <text x="405" y="135" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6B3FA0" font-weight="700">VAULT · OIDC</text>
+      <text x="405" y="151" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">mints signed JWT</text>
+      <text x="405" y="168" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#6B6B6B">agent_id: pod-{name}</text>
+
+      <g filter="url(#id-shadow)"><rect x="490" y="115" width="150" height="70" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/></g>
+      <text x="565" y="135" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">✓ IDENTITY</text>
+      <text x="565" y="151" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">/vault/actor-token</text>
+      <text x="565" y="168" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#2D7A4F">unique per pod ✓</text>
+
+      <!-- Nomad row -->
+      <rect x="20" y="220" width="640" height="120" rx="8" fill="rgba(0,202,142,0.04)" stroke="#00CA8E" stroke-width="1" stroke-dasharray="3,3"/>
+      <text x="36" y="240" font-family="JetBrains Mono,monospace" font-size="9" fill="#00CA8E" font-weight="700" letter-spacing="2">NOMAD</text>
+
+      <g filter="url(#id-shadow)"><rect x="40" y="255" width="130" height="70" rx="8" fill="white" stroke="#00CA8E" stroke-width="1.5"/></g>
+      <text x="105" y="275" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#00CA8E" font-weight="700">ALLOCATION</text>
+      <text x="105" y="291" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">Workload Identity</text>
+      <text x="105" y="308" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">JWT · aud=vault.io</text>
+
+      <g filter="url(#id-shadow)"><rect x="190" y="255" width="130" height="70" rx="8" fill="white" stroke="#6B3FA0" stroke-width="1.5"/></g>
+      <text x="255" y="275" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6B3FA0" font-weight="700">VAULT · JWT AUTH</text>
+      <text x="255" y="291" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">verifies platform id</text>
+      <text x="255" y="308" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#6B6B6B">user_claim: unique_id</text>
+
+      <g filter="url(#id-shadow)"><rect x="340" y="255" width="130" height="70" rx="8" fill="white" stroke="#6B3FA0" stroke-width="1.5"/></g>
+      <text x="405" y="275" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6B3FA0" font-weight="700">VAULT · OIDC</text>
+      <text x="405" y="291" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">mints signed JWT</text>
+      <text x="405" y="308" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#6B6B6B">agent_id: dc:alloc-id</text>
+
+      <g filter="url(#id-shadow)"><rect x="490" y="255" width="150" height="70" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/></g>
+      <text x="565" y="275" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">✓ IDENTITY</text>
+      <text x="565" y="291" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">template block writes</text>
+      <text x="565" y="308" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#2D7A4F">unique per allocation ✓</text>
+
+      <!-- arrows between boxes -->
+      <g stroke="#6B6B6B" stroke-width="1" fill="none" opacity="0.5" marker-end="url(#arrow)">
+        <path d="M170,150 L190,150"/>
+        <path d="M320,150 L340,150"/>
+        <path d="M470,150 L490,150"/>
+        <path d="M170,290 L190,290"/>
+        <path d="M320,290 L340,290"/>
+        <path d="M470,290 L490,290"/>
+      </g>
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="#6B6B6B" opacity="0.6"/>
+        </marker>
+      </defs>
+
+      <!-- Callouts -->
+      <g>
+        <rect x="190" y="355" width="170" height="18" rx="4" fill="#FFF8DC" stroke="#D4A017" stroke-width="0.5"/>
+        <text x="275" y="367" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#8A6700">no secrets · every agent unique</text>
+      </g>
+      <g>
+        <rect x="380" y="355" width="170" height="18" rx="4" fill="#FFF8DC" stroke="#D4A017" stroke-width="0.5"/>
+        <text x="465" y="367" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#8A6700">cryptographically signed · short-lived</text>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<section class="subsection" id="identity-repo" data-sub="In this repo">
+  <h3 class="subsection-title">In this repo</h3>
+  <p class="subsection-desc">Where identity is implemented. Click to expand.</p>
+
+  <details class="repo-card">
+    <summary><code>deploy-k8s/</code> Vault Agent injector annotations (K8s path)</summary>
+    <div class="repo-body">
+      <p>Pods are annotated to request Vault Agent sidecar injection. The sidecar authenticates with the pod's ServiceAccount JWT and writes the actor_token to <code>/vault/path/actor-token</code>:</p>
+      <ul>
+        <li><code>vault.hashicorp.com/role: "agent-role"</code></li>
+        <li><code>vault.hashicorp.com/auth-type: "jwt"</code></li>
+        <li><code>vault.hashicorp.com/agent-inject-secret-actor-token: "identity/oidc/token/agent-role"</code></li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="repo-card">
+    <summary><code>ai-agent/</code> FastAPI runtime reads the injected token</summary>
+    <div class="repo-body">
+      <p>The agent runtime reads the rotating actor_token from disk at request time and presents it as <em>proof of which replica is calling</em> in every downstream OBO exchange. No secrets are baked into the image; Vault Agent refreshes the file in place.</p>
+    </div>
+  </details>
+
+  <details class="repo-card">
+    <summary><code>infra/</code> Vault JWT auth role + OIDC issuer config</summary>
+    <div class="repo-body">
+      <p>Terraform provisions the Vault JWT auth backend that trusts the K8s or Nomad issuer, the OIDC key used to sign actor_tokens, and the role that binds the two. The IDP is configured to trust Vault as an OIDC issuer for agent identities — so token exchange at the IDP can verify the actor_token natively.</p>
+    </div>
+  </details>
+</section>
 
 <!-- ===== CHAPTER 4 SLOT (Task 7) ===== -->
 
