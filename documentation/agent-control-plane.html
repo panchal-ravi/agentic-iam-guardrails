@@ -452,6 +452,19 @@ details.repo-card .repo-body code { font-family: var(--mono); font-size: 12px;
   background: rgba(45,122,79,0.1); color: var(--pillar-observe);
   padding: 2px 7px; border-radius: 3px; margin-top: 8px; }
 @media (max-width:900px) { .obs-grid { grid-template-columns: 1fr; } }
+/* READINESS step flow */
+.rd-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  margin-bottom: 24px; }
+.rd-step { background: white; border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; border-top: 3px solid var(--red); }
+.rd-step .rd-num { font-family: var(--mono); font-size: 10px; color: var(--red);
+  letter-spacing: 1.5px; font-weight: 700; margin-bottom: 4px; }
+.rd-step h4 { font-family: var(--serif); font-size: 16px; color: var(--text); margin-bottom: 4px; }
+.rd-step p  { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.rd-step ul { margin-top: 6px; padding-left: 16px; font-size: 11px;
+  color: var(--text-muted); line-height: 1.6; }
+@media (max-width:900px) { .rd-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width:600px) { .rd-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -1493,7 +1506,54 @@ aud:   "loan-api.bank.internal"</pre>
   </details>
 </section>
 
-<!-- ===== CHAPTER 7 SLOT (Task 10) ===== -->
+<div class="chapter-divider" id="readiness" data-section="readiness">
+  <div class="chapter-number">Chapter Seven</div>
+  <h2 class="chapter-title">Readiness &amp; next steps</h2>
+  <p class="chapter-subtitle">From concepts to a mapped, scored, prioritized path forward.</p>
+</div>
+
+<section class="subsection" id="readiness-steps" data-sub="Assessment">
+  <h3 class="subsection-title">Agentic security readiness assessment</h3>
+  <p class="subsection-desc">Four steps. Map your agent landscape, then assess posture across all four pillars.</p>
+  <div class="rd-grid">
+    <div class="rd-step">
+      <div class="rd-num">01 · MAP</div>
+      <h4>Agent landscape</h4>
+      <ul><li>Inventory deployed AI agents</li><li>Map agent-to-system access</li><li>Delegation chains + handoff topology</li><li>Identity model: shared vs unique</li></ul>
+    </div>
+    <div class="rd-step">
+      <div class="rd-num">02 · DISCOVER</div>
+      <h4>Pillar deep-dive</h4>
+      <ul><li>Interview app + security stakeholders</li><li>Walk through workflows and tool calls</li><li>Review identity broker + token design</li><li>Analyze runtime guardrail gaps</li><li>Assess telemetry coverage</li></ul>
+    </div>
+    <div class="rd-step">
+      <div class="rd-num">03 · ASSESS</div>
+      <h4>Score + prioritize</h4>
+      <ul><li>Score maturity across four pillars</li><li>Rate prompt-injection / leakage risk</li><li>Identify compliance gaps</li><li>Analyze privilege escalation</li></ul>
+    </div>
+    <div class="rd-step">
+      <div class="rd-num">04 · REVIEW</div>
+      <h4>Scorecard + roadmap</h4>
+      <ul><li>Deliver maturity scorecard</li><li>Prioritized remediation roadmap</li><li>Surface quick wins + top risks</li><li>Executive summary</li></ul>
+    </div>
+  </div>
+</section>
+
+<section class="subsection" id="readiness-read" data-sub="Read more">
+  <h3 class="subsection-title">Read the repo</h3>
+  <p class="subsection-desc">Start with the README for the overall demo flow. Then provision, deploy, and dive into the per-service docs.</p>
+  <details class="repo-card">
+    <summary><code>README.md</code> Suggested reading order</summary>
+    <div class="repo-body">
+      <ol style="font-size:13px;padding-left:20px;line-height:1.7">
+        <li>Read the top-level <code>README.md</code> for the overall demo flow.</li>
+        <li>Provision infrastructure via <code>infra/README.md</code>.</li>
+        <li>Deploy workloads via <code>deploy-k8s/README.md</code>.</li>
+        <li>Consult individual service READMEs for per-component configuration.</li>
+      </ol>
+    </div>
+  </details>
+</section>
 
 <!-- ===== JS SLOT (Task 11) ===== -->
 
