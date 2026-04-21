@@ -291,6 +291,38 @@ body.has-selection .node.dimmed { opacity: 0.15; }
   .pillar-grid, .path-grid { grid-template-columns: 1fr; }
   .landing-headline { font-size: 32px; }
 }
+
+/* STAT CALLOUT */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+  margin-bottom: 28px; }
+.stat { background: white; border: 1px solid var(--border); border-radius: 8px;
+  padding: 20px; text-align: center; }
+.stat-num { font-family: var(--serif); font-size: 38px; font-weight: 800;
+  color: var(--red); line-height: 1; margin-bottom: 6px; }
+.stat-label { font-size: 12px; color: var(--text-muted); line-height: 1.4; }
+
+/* BREAKDOWN CARDS */
+.breakdown-grid { display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 16px; margin-bottom: 24px; }
+.breakdown-card { background: white; border: 1px solid var(--border); border-radius: 8px;
+  padding: 18px 20px; border-top: 3px solid var(--red); }
+.breakdown-card h4 { font-family: var(--serif); font-size: 16px; font-weight: 700;
+  color: var(--text); margin-bottom: 8px; }
+.breakdown-card p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+.breakdown-card ul { margin-top: 8px; padding-left: 18px; font-size: 12px;
+  color: var(--text-muted); line-height: 1.7; }
+
+/* PULL-QUOTE */
+.pullquote { border-left: 3px solid var(--red); padding: 14px 20px 14px 22px;
+  margin: 28px 0; background: rgba(196,40,58,0.03); border-radius: 0 6px 6px 0; }
+.pullquote-text { font-family: var(--serif); font-size: 18px; font-style: italic;
+  color: var(--text); line-height: 1.55; }
+.pullquote-attr { margin-top: 10px; font-size: 12px; color: var(--text-muted);
+  font-family: var(--mono); letter-spacing: 0.5px; }
+
+@media (max-width:900px) {
+  .stat-row, .breakdown-grid { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -419,7 +451,64 @@ body.has-selection .node.dimmed { opacity: 0.15; }
   </div>
 </div>
 
-<!-- ===== CHAPTER 1 SLOT (Task 4) ===== -->
+<div class="chapter-divider" id="risk" data-section="risk">
+  <div class="chapter-number">Chapter One</div>
+  <h2 class="chapter-title">The New Enterprise Risk</h2>
+  <p class="chapter-subtitle">Scaling speed without scaling oversight creates a new frontier of operational risk.</p>
+</div>
+
+<section class="subsection" id="risk-overview" data-sub="Overview">
+  <h3 class="subsection-title">AI agents are the new norm</h3>
+  <p class="subsection-desc">From answering questions to taking action — the shift is already here.</p>
+  <div class="stat-row">
+    <div class="stat"><div class="stat-num">88%</div><div class="stat-label">of enterprises use AI in at least one function<br><span style="color:var(--text-caption)">McKinsey, 2025</span></div></div>
+    <div class="stat"><div class="stat-num">24/7</div><div class="stat-label">Autonomous execution across business functions — handling multi-step workflows independently</div></div>
+    <div class="stat"><div class="stat-num">ERP · CRM · Code</div><div class="stat-label" style="font-family:var(--mono);font-size:10px;letter-spacing:1px">Agents now read, write, and control the same systems humans do</div></div>
+  </div>
+</section>
+
+<section class="subsection" id="risk-breakdown" data-sub="Where it breaks">
+  <h3 class="subsection-title">Where agentic AI breaks down without the right foundations</h3>
+  <p class="subsection-desc">Four failure modes that legacy controls cannot see, let alone stop.</p>
+  <div class="breakdown-grid">
+    <div class="breakdown-card">
+      <h4>Non-deterministic behavior</h4>
+      <p>Same name, different behavior. Two replicas of the same agent can reach different decisions while sharing one identity.</p>
+      <ul><li>Shared identity masks <em>which</em> replica acted.</li><li>Impossible to audit or hold the right instance accountable.</li></ul>
+    </div>
+    <div class="breakdown-card">
+      <h4>Invisible delegation</h4>
+      <p>Chains of accountability collapse. Should the agent act as the user, or as itself? The wrong choice risks impersonation or over-privileged access.</p>
+      <ul><li>No audit trail across agent handoffs.</li><li>Impossible to trace <em>who did what, when</em>.</li></ul>
+    </div>
+    <div class="breakdown-card">
+      <h4>No real-time enforcement</h4>
+      <p>Guardrails only exist in the developer's mind. Prompt injection and unsafe tool use reach production unfiltered.</p>
+      <ul><li>Data leakage via outputs is unchecked.</li><li>No runtime policy — no control over what agents can't do.</li></ul>
+    </div>
+    <div class="breakdown-card">
+      <h4>No central visibility</h4>
+      <p>Flying blind at enterprise scale. Policy violations go undetected. Agent workflows cross multiple systems without unified tracing.</p>
+      <ul><li>Limited insight into agent decisions, tool usage, and actions.</li><li>No end-to-end view from human intent to final side effect.</li></ul>
+    </div>
+  </div>
+</section>
+
+<section class="subsection" id="risk-real-world" data-sub="Real-world">
+  <h3 class="subsection-title">Real-world risk: this is already happening</h3>
+  <p class="subsection-desc">Without proper guardrails, AI agents with infrastructure access are already causing production incidents.</p>
+  <div class="pullquote">
+    <div class="pullquote-text">"Claude Code wiped our production database with a Terraform command. It took down the course platform and 2.5 years of submissions: homework, projects, and leaderboards. Automated snapshots were gone too."</div>
+    <div class="pullquote-attr">— Alexey Grigorev · DataTalksClub</div>
+  </div>
+  <p style="font-size:14px;color:var(--text-muted);margin-bottom:10px"><strong style="color:var(--text)">What was missing:</strong></p>
+  <ul style="font-size:13px;color:var(--text-muted);line-height:1.7;padding-left:22px;margin-bottom:16px">
+    <li><strong>Unrestricted access</strong> — the agent could run any Terraform command against production, including <code style="font-family:var(--mono);background:var(--bg-code);padding:1px 5px;border-radius:3px;color:var(--red);font-size:12px">destroy</code>.</li>
+    <li><strong>No human gate</strong> — destructive changes executed without approval or review.</li>
+    <li><strong>No environment isolation</strong> — the agent operated directly against production; no sandbox, staging, or workspace separation.</li>
+  </ul>
+  <p style="font-size:14px;color:var(--text);font-weight:600;margin-top:20px;padding:12px 16px;background:rgba(196,40,58,0.05);border-left:3px solid var(--red);border-radius:4px">Guardrails aren't optional. Every risk above needs to be addressed by controls enforced at the platform layer — not left to application code.</p>
+</section>
 
 <!-- ===== CHAPTER 2 SLOT (Task 5) ===== -->
 
