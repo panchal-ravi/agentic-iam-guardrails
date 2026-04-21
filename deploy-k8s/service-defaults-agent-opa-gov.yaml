@@ -1,0 +1,144 @@
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceDefaults
+metadata:
+  name: ai-agent
+  namespace: default
+spec:
+  protocol: http
+  envoyExtensions:
+  - name: "builtin/lua" # has to be this so it can be recognized by envoy
+    arguments:
+      proxyType: "connect-proxy"
+      listener: "inbound"
+      script: |-
+        -- ==========================================================
+        -- Thin Lua filter: delegates policy + masking to opa-gov-api.
+        -- All base64 encoding, JSON parsing, and OPA-call wiring is
+        -- handled inside the opa-gov-api service. This filter only:
+        --   - forwards the request body to /evaluate and checks the
+        --     HTTP status code (400 = block, anything else = allow)
+        --   - forwards the response body to /mask and replaces the
+        --     outbound body with whatever opa-gov-api returns
+        -- ==========================================================
+
+        local OPA_GOV_TIMEOUT_MS = 5000
+        local OPA_GOV_PATH_EVALUATE = "/evaluate"
+        local OPA_GOV_PATH_MASK = "/mask"
+        local BLOCKED_MESSAGE = "This content was blocked due to security policy violation"
+
+        -- Resolve the Consul FQDN for opa-gov-api from dynamic metadata.
+        -- Returns nil if the sidecar has not populated the consul namespace.
+        local function resolve_opa_gov_service(handle)
+          local md = handle:streamInfo():dynamicMetadata()
+          if not md then return nil end
+          local consul_ns = md:get("consul")
+          if not consul_ns or type(consul_ns) ~= "table" then return nil end
+          local trust_domain = consul_ns["trust-domain"]
+          local datacenter = consul_ns["datacenter"]
+          if not trust_domain or not datacenter then return nil end
+          return "opa-gov-api.default." .. datacenter .. ".internal." .. trust_domain
+        end
+
+        -- POST body_str to opa-gov-api at the given path. Returns
+        -- (response_headers, response_body) or (nil, nil) on transport failure.
+        local function call_opa_gov(handle, opa_gov_service, path, body_str)
+          local request_id = handle:headers():get("x-request-id")
+            or handle:headers():get("X-Request-ID")
+            or handle:streamInfo():requestID()
+          local headers = {
+            [":method"] = "POST",
+            [":path"] = path,
+            [":authority"] = opa_gov_service,
+            ["content-type"] = "text/plain",
+            ["x-request-id"] = request_id,
+          }
+          return handle:httpCall(
+            opa_gov_service, headers, body_str or "", OPA_GOV_TIMEOUT_MS
+          )
+        end
+
+        -- ==========================================================
+        -- Request path: enforce inbound security policy via opa-gov-api.
+        -- ==========================================================
+        function envoy_on_request(request_handle)
+          request_handle:logInfo("Inbound Request")
+
+          local opa_gov_service = resolve_opa_gov_service(request_handle)
+          if not opa_gov_service then
+            request_handle:logWarn("Missing Consul metadata; skipping opa-gov-api /evaluate")
+            return
+          end
+          request_handle:logInfo("opa-gov-api service: " .. opa_gov_service)
+
+          local body = request_handle:body(true)
+          if not body or body:length() == 0 then
+            request_handle:logInfo("Inbound Request Body: <empty>; skipping /evaluate")
+            return
+          end
+          local body_str = body:getBytes(0, body:length())
+          request_handle:logInfo("Inbound Request Body: " .. body_str)
+
+          local response_headers, response_body = call_opa_gov(
+            request_handle, opa_gov_service, OPA_GOV_PATH_EVALUATE, body_str
+          )
+          if not response_headers then
+            request_handle:logWarn("opa-gov-api unreachable on /evaluate; fail-open")
+            return
+          end
+
+          local status = tonumber(response_headers[":status"])
+          request_handle:logInfo("opa-gov-api /evaluate status: " .. tostring(status))
+          if status == 400 then
+            request_handle:respond(
+              {[":status"] = "400", ["content-type"] = "text/plain"},
+              response_body or BLOCKED_MESSAGE
+            )
+            return
+          end
+        end
+
+        -- ==========================================================
+        -- Response path: mask outbound payload via opa-gov-api (200 only).
+        -- ==========================================================
+        function envoy_on_response(response_handle)
+          response_handle:logInfo("Sending Response")
+
+          local status_code = tonumber(response_handle:headers():get(":status"))
+          response_handle:logInfo("Outbound response status: " .. tostring(status_code))
+          if not status_code or status_code ~= 200 then
+            response_handle:logInfo("Skipping opa-gov-api /mask for non-200 response")
+            return
+          end
+
+          local body = response_handle:body(true)
+          if not body or body:length() == 0 then
+            response_handle:logInfo("Outbound response body: <empty>; skipping /mask")
+            return
+          end
+
+          local opa_gov_service = resolve_opa_gov_service(response_handle)
+          if not opa_gov_service then
+            response_handle:logWarn("Missing Consul metadata; skipping opa-gov-api /mask")
+            return
+          end
+
+          local body_str = body:getBytes(0, body:length())
+          local response_headers, response_body = call_opa_gov(
+            response_handle, opa_gov_service, OPA_GOV_PATH_MASK, body_str
+          )
+          response_handle:logInfo("Outbound response body: " .. body_str)
+          if not response_headers or not response_body then
+            response_handle:logWarn("opa-gov-api unreachable on /mask; passing body through")
+            return
+          end
+          response_handle:logInfo("opa-gov-api /mask response: " .. response_body)
+
+          response_handle:body():setBytes(response_body)
+          response_handle:headers():replace(
+            "content-length", tostring(response_handle:body():length())
+          )
+          local gov_ct = response_headers["content-type"]
+          if gov_ct then
+            response_handle:headers():replace("content-type", gov_ct)
+          end
+        end

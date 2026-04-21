@@ -34,7 +34,13 @@ kubectl apply -n opa -f deploy-k8s/opa-server.yaml
 kubectl port-forward -n opa svc/opa-service 8080:80
 curl -s http://localhost:8080/v1/policies\?pretty\=true | jq -r '.result[] | [.id, .raw] | join("\n")'
 
-kubectl apply -f deploy-k8s/service-defaults-agent-opa.yaml 
+#kubectl apply -f deploy-k8s/service-defaults-agent-opa.yaml 
+```
+
+## Deploy opa-gov-api (if testing OPA)
+```
+kubectl apply -f deploy-k8s/opa-gov-api.yaml                                 
+kubectl apply -f deploy-k8s/service-defaults-agent-opa-gov.yaml 
 ```
 
 ## Deploy wx-gov-api (if testing watsonx-governance)

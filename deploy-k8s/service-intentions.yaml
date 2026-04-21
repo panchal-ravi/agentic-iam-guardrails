@@ -54,3 +54,20 @@ spec:
     - name: ai-agent
       action: allow
       namespace: default
+    - name: opa-gov-api
+      action: allow
+      namespace: default
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: opa-gov-api
+  namespace: default
+spec:
+  destination:
+    name: opa-gov-api
+    namespace: default
+  sources:
+    - name: ai-agent
+      action: allow
+      namespace: default
