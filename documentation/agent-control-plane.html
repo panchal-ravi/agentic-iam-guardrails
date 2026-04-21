@@ -334,6 +334,27 @@ body.has-selection .node.dimmed { opacity: 0.15; }
   background: var(--bg-code); padding: 1px 6px;
   border-radius: 3px; color: var(--red);
 }
+
+/* IDENTITY CARDS */
+.id-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+  margin-bottom: 24px; }
+.id-card { border: 1px solid var(--border); border-radius: 8px; background: white;
+  padding: 16px; border-top: 4px solid var(--red); }
+.id-card.c-user    { border-top-color: #4A6B8A; }
+.id-card.c-platform{ border-top-color: var(--text-muted); }
+.id-card.c-agent   { border-top-color: var(--pillar-trace); }
+.id-card.c-obo     { border-top-color: var(--pillar-runtime); }
+.id-card h4 { font-family: var(--serif); font-size: 16px; font-weight: 700;
+  color: var(--text); margin-bottom: 4px; }
+.id-card .id-also { font-family: var(--mono); font-size: 10px; color: var(--text-caption); margin-bottom: 10px; }
+.id-card .id-k { font-family: var(--mono); font-size: 9px; letter-spacing: 1.2px;
+  text-transform: uppercase; color: var(--text-caption); margin-top: 8px; }
+.id-card .id-v { font-size: 12px; color: var(--text-body); line-height: 1.5; }
+.id-card pre { font-family: var(--mono); font-size: 10px; background: var(--bg-code);
+  border: 1px solid var(--border-light); border-radius: 4px;
+  padding: 8px 10px; margin-top: 10px; line-height: 1.5; overflow-x: auto; }
+@media (max-width:900px) { .id-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width:600px) { .id-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -671,7 +692,55 @@ body.has-selection .node.dimmed { opacity: 0.15; }
 </section>
 
 <!-- CHAPTER 2B + 2C slots -->
-<!-- ===== CHAPTER 2B SLOT (Task 5b) ===== -->
+<section class="subsection" id="cp-identities" data-sub="Four identities">
+  <h3 class="subsection-title">A tale of four identities</h3>
+  <p class="subsection-desc">Every time an AI agent acts on a user's behalf, four identities are in play. Each one answers a different trust question.</p>
+
+  <div class="id-grid">
+    <div class="id-card c-user">
+      <h4>User identity</h4>
+      <div class="id-also">also called subject_token</div>
+      <div class="id-k">Proves</div><div class="id-v">Who is asking.</div>
+      <div class="id-k">Issued by</div><div class="id-v">Corporate login — IBM Verify, Entra ID.</div>
+<pre>name:  "Alice Johnson"
+email: "alice@bank.com"
+role:  "loan_officer"
+iss:   "verify.ibm.com"</pre>
+    </div>
+    <div class="id-card c-platform">
+      <h4>Platform identity</h4>
+      <div class="id-also">K8s SA · Nomad workload id</div>
+      <div class="id-k">Proves</div><div class="id-v">Where the agent is running.</div>
+      <div class="id-k">Issued by</div><div class="id-v">Kubernetes / Nomad — automatic.</div>
+<pre>pod:  "loan-agent-7a2f"
+ns:   "banking-prod"
+sa:   "loan-agent-sa"
+node: "worker-03"</pre>
+    </div>
+    <div class="id-card c-agent">
+      <h4>Agent identity</h4>
+      <div class="id-also">also called actor_token</div>
+      <div class="id-k">Proves</div><div class="id-v">Which exact agent replica — unique per instance.</div>
+      <div class="id-k">Issued by</div><div class="id-v">Vault — the identity broker.</div>
+<pre>agent_id: "7a2f-loan-bot"
+entity:   "e8f2-a3b1"
+ttl:      "1h"
+iss:      "vault.bank.internal"</pre>
+    </div>
+    <div class="id-card c-obo">
+      <h4>On-Behalf-Of token</h4>
+      <div class="id-also">delegated · user × agent</div>
+      <div class="id-k">Proves</div><div class="id-v">Agent-7a2f acting on behalf of Alice — both at once.</div>
+      <div class="id-k">Issued by</div><div class="id-v">IDP — via token exchange (RFC 8693).</div>
+<pre>sub:   "alice@bank.com"
+act:   "7a2f-loan-bot"
+scope: "loans.read"
+aud:   "loan-api.bank.internal"</pre>
+    </div>
+  </div>
+
+  <p style="font-size:14px;color:var(--text-muted);line-height:1.6;padding:12px 16px;background:var(--bg-warm);border-radius:6px;border-left:3px solid var(--pillar-trace)"><strong style="color:var(--text)">Banking example.</strong> Alice asks the loan-status agent about customer #12345. The Loan API sees that Alice requested it, agent <code>7a2f</code> carried it out, and access is scoped to <code>loans.read</code> only — nothing else.</p>
+</section>
 <!-- ===== CHAPTER 2C SLOT (Task 5c) ===== -->
 
 <!-- ===== CHAPTER 3 SLOT (Task 6) ===== -->
