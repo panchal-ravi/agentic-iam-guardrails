@@ -323,6 +323,17 @@ body.has-selection .node.dimmed { opacity: 0.15; }
 @media (max-width:900px) {
   .stat-row, .breakdown-grid { grid-template-columns: 1fr; }
 }
+
+/* PILLAR BANDS (used in SVG labels) */
+.band-label { font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; fill: var(--text-caption); }
+
+/* INLINE CODE in paragraphs */
+.chapter code, .subsection code {
+  font-family: var(--mono); font-size: 13px;
+  background: var(--bg-code); padding: 1px 6px;
+  border-radius: 3px; color: var(--red);
+}
 </style>
 </head>
 <body>
@@ -510,7 +521,158 @@ body.has-selection .node.dimmed { opacity: 0.15; }
   <p style="font-size:14px;color:var(--text);font-weight:600;margin-top:20px;padding:12px 16px;background:rgba(196,40,58,0.05);border-left:3px solid var(--red);border-radius:4px">Guardrails aren't optional. Every risk above needs to be addressed by controls enforced at the platform layer — not left to application code.</p>
 </section>
 
-<!-- ===== CHAPTER 2 SLOT (Task 5) ===== -->
+<div class="chapter-divider" id="control-plane" data-section="control-plane">
+  <div class="chapter-number">Chapter Two</div>
+  <h2 class="chapter-title">The AI Agent Control Plane</h2>
+  <p class="chapter-subtitle">Identity proves who acts. Traceability proves for whom. Runtime policy constrains what the agent may do. Observability proves it after the fact.</p>
+</div>
+
+<section class="subsection" id="cp-overview" data-sub="Inside the plane">
+  <h3 class="subsection-title">Inside the control plane — how it all fits together</h3>
+  <p class="subsection-desc">Three layers: identity &amp; traceability, runtime protection, and observability — with data flowing from user to audit in one continuous chain.</p>
+
+  <div class="svg-diagram" id="svg-cp-architecture">
+    <svg viewBox="0 0 680 460" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="cp-grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#E0DCD4" stroke-width="0.3" opacity="0.4"/>
+    </pattern>
+    <filter id="cp-shadow" x="-5%" y="-5%" width="110%" height="120%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.08"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="680" height="460" rx="10" fill="#FAFAF8"/>
+  <rect x="0" y="0" width="680" height="460" rx="10" fill="url(#cp-grid)"/>
+  <rect x="0" y="0" width="680" height="460" rx="10" fill="none" stroke="#E0DCD4"/>
+
+  <!-- User at top -->
+  <g filter="url(#cp-shadow)">
+    <rect x="300" y="10" width="80" height="26" rx="6" fill="white" stroke="#C4283A" stroke-width="1.5"/>
+  </g>
+  <text x="340" y="27" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#C4283A" font-weight="700" letter-spacing="1.5">USER</text>
+
+  <!-- BAND 1 · IDENTITY & TRACEABILITY -->
+  <rect x="20" y="50" width="640" height="120" rx="8" fill="rgba(107,63,160,0.04)" stroke="#6B3FA0" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="32" y="66" font-family="JetBrains Mono,monospace" font-size="9" fill="#6B3FA0" font-weight="700" letter-spacing="2">IDENTITY &amp; TRACEABILITY</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="40" y="80" width="150" height="70" rx="8" fill="white" stroke="#6B3FA0" stroke-width="1.5"/>
+  </g>
+  <text x="115" y="102" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6B3FA0" font-weight="700" letter-spacing="1">IDENTITY BROKER</text>
+  <text x="115" y="118" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">Vault · OIDC</text>
+  <text x="115" y="134" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">unique actor_token per replica</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="210" y="80" width="150" height="70" rx="8" fill="white" stroke="#6B3FA0" stroke-width="1.5"/>
+  </g>
+  <text x="285" y="102" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6B3FA0" font-weight="700" letter-spacing="1">IBM VERIFY</text>
+  <text x="285" y="118" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">user login · subject_token</text>
+  <text x="285" y="134" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">OAuth 2.0 · OIDC</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="380" y="80" width="150" height="70" rx="8" fill="white" stroke="#6B3FA0" stroke-width="1.5"/>
+  </g>
+  <text x="455" y="102" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6B3FA0" font-weight="700" letter-spacing="1">TOKEN EXCHANGE</text>
+  <text x="455" y="118" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">RFC 8693 · OBO</text>
+  <text x="455" y="134" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">subject + actor → delegated</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="550" y="80" width="100" height="70" rx="8" fill="white" stroke="#6B3FA0" stroke-width="1.5"/>
+  </g>
+  <text x="600" y="102" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#6B3FA0" font-weight="700" letter-spacing="1">VAULT</text>
+  <text x="600" y="118" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">secrets · policies</text>
+
+  <!-- BAND 2 · RUNTIME PROTECTION -->
+  <rect x="20" y="190" width="640" height="140" rx="8" fill="rgba(184,115,51,0.04)" stroke="#B87333" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="32" y="206" font-family="JetBrains Mono,monospace" font-size="9" fill="#B87333" font-weight="700" letter-spacing="2">RUNTIME PROTECTION</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="40" y="220" width="180" height="90" rx="8" fill="white" stroke="#B87333" stroke-width="1.5"/>
+  </g>
+  <text x="130" y="242" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#B87333" font-weight="700" letter-spacing="1">AGENT REPLICAS</text>
+  <rect x="54" y="252" width="72" height="22" rx="4" fill="rgba(196,40,58,0.08)" stroke="#C4283A" stroke-width="0.5"/>
+  <text x="90" y="267" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#C4283A">replica-a1</text>
+  <rect x="134" y="252" width="72" height="22" rx="4" fill="rgba(196,40,58,0.08)" stroke="#C4283A" stroke-width="0.5"/>
+  <text x="170" y="267" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#C4283A">replica-a2</text>
+  <rect x="94" y="280" width="72" height="22" rx="4" fill="rgba(196,40,58,0.04)" stroke="#C4283A" stroke-width="0.5" stroke-dasharray="2,2"/>
+  <text x="130" y="295" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#C4283A" opacity="0.6">replica-N …</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="240" y="220" width="200" height="90" rx="8" fill="white" stroke="#B87333" stroke-width="1.5"/>
+  </g>
+  <text x="340" y="242" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#B87333" font-weight="700" letter-spacing="1">POLICY ENGINE</text>
+  <text x="340" y="258" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">Consul sidecar · pluggable</text>
+  <rect x="254" y="268" width="84" height="20" rx="4" fill="rgba(184,115,51,0.1)"/>
+  <text x="296" y="282" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#B87333">pre-check</text>
+  <rect x="346" y="268" width="84" height="20" rx="4" fill="rgba(184,115,51,0.1)"/>
+  <text x="388" y="282" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#B87333">post-check</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="460" y="220" width="180" height="90" rx="8" fill="white" stroke="#B87333" stroke-width="1.5"/>
+  </g>
+  <text x="550" y="242" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#B87333" font-weight="700" letter-spacing="1">POLICY PROVIDERS</text>
+  <rect x="476" y="252" width="72" height="22" rx="4" fill="rgba(45,27,105,0.08)" stroke="#2D1B69" stroke-width="0.5"/>
+  <text x="512" y="267" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#2D1B69">OPA</text>
+  <rect x="556" y="252" width="72" height="22" rx="4" fill="rgba(15,98,254,0.08)" stroke="#0F62FE" stroke-width="0.5"/>
+  <text x="592" y="267" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#0F62FE">watsonx.gov</text>
+
+  <!-- BAND 3 · OBSERVABILITY -->
+  <rect x="20" y="350" width="640" height="100" rx="8" fill="rgba(45,122,79,0.04)" stroke="#2D7A4F" stroke-width="1" stroke-dasharray="3,3"/>
+  <text x="32" y="366" font-family="JetBrains Mono,monospace" font-size="9" fill="#2D7A4F" font-weight="700" letter-spacing="2">OBSERVABILITY</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="40" y="380" width="180" height="60" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/>
+  </g>
+  <text x="130" y="402" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">TRACE COLLECTOR</text>
+  <text x="130" y="420" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">reasoning chains · tool calls</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="240" y="380" width="200" height="60" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/>
+  </g>
+  <text x="340" y="402" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">METRICS &amp; TELEMETRY</text>
+  <text x="340" y="420" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">decisions · latency</text>
+
+  <g filter="url(#cp-shadow)">
+    <rect x="460" y="380" width="180" height="60" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/>
+  </g>
+  <text x="550" y="402" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">ALERTS</text>
+  <text x="550" y="420" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">policy breach · handoff</text>
+
+  <!-- Connection paths with animated particles -->
+  <!-- User → Identity broker -->
+  <path id="cp-p1" d="M340,36 C340,58 115,60 115,80" fill="none" stroke="#6B3FA0" stroke-width="1.5" opacity="0.3"/>
+  <!-- User → IBM Verify -->
+  <path id="cp-p2" d="M340,36 C340,58 285,60 285,80" fill="none" stroke="#6B3FA0" stroke-width="1.5" opacity="0.3"/>
+  <!-- Identity → Agent -->
+  <path id="cp-p3" d="M115,150 C115,190 130,190 130,220" fill="none" stroke="#B87333" stroke-width="1.5" opacity="0.3"/>
+  <!-- Exchange → Agent -->
+  <path id="cp-p4" d="M455,150 C455,190 340,190 340,220" fill="none" stroke="#B87333" stroke-width="1.5" opacity="0.3"/>
+  <!-- Policy engine → OPA/wx -->
+  <path id="cp-p5" d="M440,265 L460,265" stroke="#B87333" stroke-width="1.5" opacity="0.3"/>
+  <!-- Agent → Trace collector -->
+  <path id="cp-p6" d="M130,310 C130,340 130,350 130,380" fill="none" stroke="#2D7A4F" stroke-width="1.5" opacity="0.3" stroke-dasharray="3,3"/>
+  <!-- Agent → Metrics -->
+  <path id="cp-p7" d="M200,310 C200,340 340,350 340,380" fill="none" stroke="#2D7A4F" stroke-width="1.5" opacity="0.3" stroke-dasharray="3,3"/>
+  <!-- Policy → Alerts -->
+  <path id="cp-p8" d="M340,310 C340,340 550,350 550,380" fill="none" stroke="#2D7A4F" stroke-width="1.5" opacity="0.3" stroke-dasharray="3,3"/>
+
+  <!-- Animated particles -->
+  <circle r="3" fill="#6B3FA0" opacity="0"><animateMotion dur="2.2s" repeatCount="indefinite" begin="0s"><mpath href="#cp-p1"/></animateMotion><animate attributeName="opacity" values="0;1;0" dur="2.2s" repeatCount="indefinite" begin="0s"/></circle>
+  <circle r="3" fill="#6B3FA0" opacity="0"><animateMotion dur="2.2s" repeatCount="indefinite" begin="0.7s"><mpath href="#cp-p2"/></animateMotion><animate attributeName="opacity" values="0;1;0" dur="2.2s" repeatCount="indefinite" begin="0.7s"/></circle>
+  <circle r="3" fill="#B87333" opacity="0"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.2s"><mpath href="#cp-p3"/></animateMotion><animate attributeName="opacity" values="0;1;0" dur="2.2s" repeatCount="indefinite" begin="1.2s"/></circle>
+  <circle r="3" fill="#B87333" opacity="0"><animateMotion dur="2.2s" repeatCount="indefinite" begin="1.5s"><mpath href="#cp-p4"/></animateMotion><animate attributeName="opacity" values="0;1;0" dur="2.2s" repeatCount="indefinite" begin="1.5s"/></circle>
+  <circle r="2.5" fill="#2D7A4F" opacity="0"><animateMotion dur="2.5s" repeatCount="indefinite" begin="1.8s"><mpath href="#cp-p6"/></animateMotion><animate attributeName="opacity" values="0;1;0" dur="2.5s" repeatCount="indefinite" begin="1.8s"/></circle>
+  <circle r="2.5" fill="#2D7A4F" opacity="0"><animateMotion dur="2.5s" repeatCount="indefinite" begin="2.1s"><mpath href="#cp-p7"/></animateMotion><animate attributeName="opacity" values="0;1;0" dur="2.5s" repeatCount="indefinite" begin="2.1s"/></circle>
+  <circle r="2.5" fill="#2D7A4F" opacity="0"><animateMotion dur="2.5s" repeatCount="indefinite" begin="2.4s"><mpath href="#cp-p8"/></animateMotion><animate attributeName="opacity" values="0;1;0" dur="2.5s" repeatCount="indefinite" begin="2.4s"/></circle>
+</svg>
+  </div>
+</section>
+
+<!-- CHAPTER 2B + 2C slots -->
+<!-- ===== CHAPTER 2B SLOT (Task 5b) ===== -->
+<!-- ===== CHAPTER 2C SLOT (Task 5c) ===== -->
 
 <!-- ===== CHAPTER 3 SLOT (Task 6) ===== -->
 
