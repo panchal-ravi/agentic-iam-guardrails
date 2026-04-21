@@ -248,6 +248,49 @@ body.has-selection .node.dimmed { opacity: 0.15; }
   .subsection { opacity: 1; transform: none; }
   html { scroll-behavior: auto; }
 }
+
+/* LANDING */
+#landing { padding: 80px 28px 60px; text-align: center;
+  max-width: var(--max-w); margin: 0 auto; }
+.landing-eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 3px;
+  text-transform: uppercase; color: var(--red); margin-bottom: 20px; }
+.landing-headline { font-family: var(--serif); font-size: 42px; font-weight: 800;
+  color: var(--text); line-height: 1.15; margin-bottom: 20px; }
+.landing-body { font-size: 18px; line-height: 1.7; color: var(--text-muted);
+  max-width: 620px; margin: 0 auto 36px; font-weight: 300; }
+.landing-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.landing-cta { font-family: var(--sans); font-size: 13px; font-weight: 600;
+  letter-spacing: 0.5px; padding: 12px 28px; border-radius: 6px;
+  cursor: pointer; border: 1px solid var(--border); background: white;
+  color: var(--text-muted); transition: all 0.2s; }
+.landing-cta:hover { border-color: var(--text-muted); color: var(--text); }
+.landing-cta.primary { background: var(--red); border-color: var(--red); color: white; }
+.landing-cta.primary:hover { background: var(--red-light); border-color: var(--red-light); }
+
+.pillar-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+  max-width: var(--max-w); margin: 48px auto; padding: 0 28px; }
+.pillar-card { border: 1px solid var(--border); border-radius: 8px; padding: 24px;
+  background: white; transition: all 0.2s; }
+.pillar-card:hover { border-color: var(--text-caption); box-shadow: 0 2px 12px rgba(0,0,0,0.06); }
+.pillar-label { font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+  text-transform: uppercase; color: var(--red); margin-bottom: 10px; }
+.pillar-card p { font-size: 14px; line-height: 1.65; color: var(--text-muted); }
+
+.path-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+  max-width: var(--max-w); margin: 0 auto 60px; padding: 0 28px; }
+.path-card { border: 1px solid var(--border); border-radius: 8px; padding: 20px;
+  background: white; cursor: pointer; transition: all 0.2s;
+  display: flex; flex-direction: column; gap: 4px; }
+.path-card:hover { border-color: var(--red); box-shadow: 0 2px 12px rgba(196,40,58,0.08); transform: translateY(-2px); }
+.path-number { font-family: var(--mono); font-size: 11px; letter-spacing: 2px; color: var(--red); }
+.path-name { font-family: var(--serif); font-size: 18px; font-weight: 700; color: var(--text); }
+.path-topics { font-family: var(--mono); font-size: 9px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-caption); }
+.path-desc { font-size: 13px; line-height: 1.5; color: var(--text-muted); flex: 1; }
+
+@media (max-width:900px) {
+  .pillar-grid, .path-grid { grid-template-columns: 1fr; }
+  .landing-headline { font-size: 32px; }
+}
 </style>
 </head>
 <body>
@@ -313,7 +356,68 @@ body.has-selection .node.dimmed { opacity: 0.15; }
   </div>
 </div>
 
-<!-- ===== LANDING SLOT (Task 3) ===== -->
+<section id="landing">
+  <div class="landing-eyebrow">Agentic Security Overview</div>
+  <h1 class="landing-headline">Securing AI Agents at Enterprise Scale</h1>
+  <p class="landing-body">AI agents are becoming the new norm — answering questions, taking actions, and reaching across ERP, CRM, code, and data. Legacy IAM was built for humans and deterministic systems; it has no answer for autonomous, non-deterministic agents acting on a user's behalf. The <em>AI Agent Control Plane</em> closes that gap with four pillars: identity, traceability, runtime protection, and observability.</p>
+  <div class="landing-ctas">
+    <button class="landing-cta primary" onclick="scrollToSection('control-plane')">Explore the Control Plane</button>
+    <button class="landing-cta" onclick="scrollToSection('risk')">Why it matters</button>
+  </div>
+</section>
+
+<div class="pillar-grid">
+  <div class="pillar-card">
+    <div class="pillar-label">WHAT</div>
+    <p>A unified control plane that gives every AI agent a unique, verifiable identity, a full delegation chain, guardrails on every request, and end-to-end observability — with zero application code changes.</p>
+  </div>
+  <div class="pillar-card">
+    <div class="pillar-label">WHY</div>
+    <p>Autonomous agents create new non-deterministic risk. Shared identities, invisible delegation, unfiltered prompts, and black-box decisions turn a single prompt injection into a data-exfiltration path that traditional logs never catch.</p>
+  </div>
+  <div class="pillar-card">
+    <div class="pillar-label">WHO</div>
+    <p>Platform, security, and SRE teams operating AI agents against regulated data. Architects who need to prove <em>who did what, for whom, under what policy</em> — on every call, for every replica.</p>
+  </div>
+</div>
+
+<div style="text-align:center;max-width:var(--max-w);margin:0 auto;padding:0 28px 12px">
+  <div class="chapter-number">Your Reading Path</div>
+  <p style="font-size:14px;color:var(--text-muted)">Seven chapters — the risk, the control plane, and the four pillars in depth</p>
+</div>
+
+<div class="path-grid">
+  <div class="path-card" onclick="scrollToSection('risk')">
+    <div class="path-number">01</div><div class="path-name">The New Risk</div>
+    <div class="path-topics">Why guardrails are not optional</div>
+    <div class="path-desc">How autonomous agents break four assumptions that legacy IAM depends on.</div>
+  </div>
+  <div class="path-card" onclick="scrollToSection('control-plane')">
+    <div class="path-number">02</div><div class="path-name">The Control Plane</div>
+    <div class="path-topics">4 identities · 4 pillars</div>
+    <div class="path-desc">The architecture that turns four identities into one scoped, auditable credential.</div>
+  </div>
+  <div class="path-card" onclick="scrollToSection('identity')">
+    <div class="path-number">03</div><div class="path-name">Identity</div>
+    <div class="path-topics">Pillar 1 · Unique per replica</div>
+    <div class="path-desc">Automatic platform-native identity, minted as a signed OIDC token per agent instance.</div>
+  </div>
+  <div class="path-card" onclick="scrollToSection('traceability')">
+    <div class="path-number">04</div><div class="path-name">Traceability</div>
+    <div class="path-topics">Pillar 2 · OBO chain</div>
+    <div class="path-desc">Delegation preserved across every hop. Impersonation and privilege escalation become impossible to hide.</div>
+  </div>
+  <div class="path-card" onclick="scrollToSection('runtime')">
+    <div class="path-number">05</div><div class="path-name">Runtime Protection</div>
+    <div class="path-topics">Pillar 3 · Guardrails in motion</div>
+    <div class="path-desc">Every request and response inspected against policy — prompt injection, PII, and unsafe tool use stopped at the platform layer.</div>
+  </div>
+  <div class="path-card" onclick="scrollToSection('observability')">
+    <div class="path-number">06</div><div class="path-name">Observability</div>
+    <div class="path-topics">Pillar 4 · End-to-end visibility</div>
+    <div class="path-desc">Traces, decisions, tool calls, and policy violations — correlated to the human who asked.</div>
+  </div>
+</div>
 
 <!-- ===== CHAPTER 1 SLOT (Task 4) ===== -->
 
