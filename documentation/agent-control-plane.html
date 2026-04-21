@@ -399,6 +399,19 @@ details.repo-card .repo-body { margin-top: 10px; font-size: 13px;
 details.repo-card .repo-body ul { padding-left: 20px; margin-top: 6px; }
 details.repo-card .repo-body code { font-family: var(--mono); font-size: 12px;
   background: var(--bg-code); padding: 1px 5px; border-radius: 3px; color: var(--red); }
+
+/* Pillar color overrides for repo-card summary code badge */
+#traceability details.repo-card summary code { color: var(--pillar-trace); background: rgba(26,107,122,0.08); }
+#runtime details.repo-card summary code       { color: var(--pillar-runtime); background: rgba(184,115,51,0.08); }
+#observability details.repo-card summary code  { color: var(--pillar-observe); background: rgba(45,122,79,0.08); }
+
+/* OBO token anatomy code block */
+.token-anatomy { background: #0F172A; border-radius: 8px; padding: 16px 20px;
+  margin: 16px 0; font-family: var(--mono); font-size: 12px; color: #E2E8F0;
+  line-height: 1.65; overflow-x: auto; }
+.token-anatomy .tok-k { color: #94A3B8; }
+.token-anatomy .tok-s { color: #FBBF24; }
+.token-anatomy .tok-n { color: #60A5FA; }
 </style>
 </head>
 <body>
@@ -1032,7 +1045,139 @@ aud:   "loan-api.bank.internal"</pre>
   </details>
 </section>
 
-<!-- ===== CHAPTER 4 SLOT (Task 7) ===== -->
+<div class="chapter-divider" id="traceability" data-section="traceability">
+  <div class="chapter-number">Chapter Four</div>
+  <div class="pillar-eyebrow p-trace">Pillar 2 · Traceability</div>
+  <h2 class="chapter-title">Know who did what — and for whom</h2>
+  <p class="chapter-subtitle">Every agent action is cryptographically tied to the human who requested it. Delegation preserved across every hop.</p>
+</div>
+
+<section class="subsection" id="trace-problem" data-sub="The problem">
+  <h3 class="subsection-title">Without a delegation chain, identity gets lost at every hop</h3>
+  <div class="before-after">
+    <div class="before">
+      <div class="ba-label">Without OBO</div>
+      <h4>User → Agent → Action</h4>
+      <ul>
+        <li><strong>Impersonation</strong> — agent acts as the user, no scope constraint.</li>
+        <li><strong>Privilege escalation</strong> — over-privileged access with no scope limit.</li>
+        <li><strong>No audit evidence</strong> — compliance can't prove who did what, when.</li>
+      </ul>
+    </div>
+    <div class="after">
+      <div class="ba-label">With OBO · RFC 8693</div>
+      <h4>User delegates → Agent acts → Action traceable</h4>
+      <ul>
+        <li><strong>User identity preserved</strong> — subject stays across every hop.</li>
+        <li><strong>Least privilege</strong> — scoped, short-lived actor tokens only.</li>
+        <li><strong>Tamper-proof log</strong> — who, to whom, when, under what constraints.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="subsection" id="trace-how" data-sub="How it works">
+  <h3 class="subsection-title">Traceability — how it works</h3>
+  <p class="subsection-desc">Four stages turn subject + actor into a single signed on-behalf-of credential.</p>
+
+  <div class="svg-diagram" id="svg-trace-chain">
+    <svg viewBox="0 0 680 220" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="tr-shadow" x="-5%" y="-5%" width="110%" height="120%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.08"/>
+        </filter>
+      </defs>
+      <g font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A" font-weight="700" letter-spacing="1.5">
+        <text x="90" y="24" text-anchor="middle">WEB UI</text>
+        <text x="255" y="24" text-anchor="middle">EXCHANGE TOKEN</text>
+        <text x="420" y="24" text-anchor="middle">OBO TOKEN</text>
+        <text x="580" y="24" text-anchor="middle">API ACCESS</text>
+      </g>
+
+      <g filter="url(#tr-shadow)"><rect x="20" y="40" width="140" height="80" rx="8" fill="white" stroke="#1A6B7A" stroke-width="1.5"/></g>
+      <text x="90" y="64" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="11" font-weight="600" fill="#1A1A1A">User login</text>
+      <text x="90" y="80" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#6B6B6B">IDP issues</text>
+      <rect x="36" y="90" width="108" height="18" rx="4" fill="rgba(26,107,122,0.1)"/>
+      <text x="90" y="103" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A">subject_token</text>
+
+      <g filter="url(#tr-shadow)"><rect x="185" y="40" width="140" height="80" rx="8" fill="white" stroke="#1A6B7A" stroke-width="1.5"/></g>
+      <text x="255" y="64" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="11" font-weight="600" fill="#1A1A1A">Agent calls IDP</text>
+      <text x="255" y="80" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#6B6B6B">subject + actor</text>
+      <rect x="199" y="90" width="55" height="18" rx="4" fill="rgba(26,107,122,0.1)"/>
+      <text x="226" y="103" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A">subject</text>
+      <rect x="258" y="90" width="55" height="18" rx="4" fill="rgba(26,107,122,0.1)"/>
+      <text x="285" y="103" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A">actor</text>
+
+      <g filter="url(#tr-shadow)"><rect x="350" y="40" width="140" height="80" rx="8" fill="white" stroke="#1A6B7A" stroke-width="1.5"/></g>
+      <text x="420" y="64" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="11" font-weight="600" fill="#1A1A1A">IDP issues</text>
+      <text x="420" y="80" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#6B6B6B">RFC 8693</text>
+      <rect x="370" y="90" width="100" height="18" rx="4" fill="rgba(184,115,51,0.12)"/>
+      <text x="420" y="103" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#B87333">obo_token</text>
+
+      <g filter="url(#tr-shadow)"><rect x="515" y="40" width="140" height="80" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/></g>
+      <text x="585" y="64" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="11" font-weight="600" fill="#1A1A1A">Agent → API</text>
+      <text x="585" y="80" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#6B6B6B">E2E traceable</text>
+      <rect x="537" y="90" width="96" height="18" rx="4" fill="rgba(45,122,79,0.1)"/>
+      <text x="585" y="103" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#2D7A4F">audit ✓</text>
+
+      <!-- animated trace line connecting stages -->
+      <path id="tr-line" d="M160,80 L185,80 M325,80 L350,80 M490,80 L515,80"
+            stroke="#1A6B7A" stroke-width="2" fill="none"
+            stroke-dasharray="100" stroke-dashoffset="100"
+            style="animation: svg-trace 3s ease-out forwards infinite;"/>
+
+      <!-- travelling particle -->
+      <circle r="4" fill="#1A6B7A">
+        <animateMotion dur="4s" repeatCount="indefinite"
+          path="M90,130 L255,130 L420,130 L585,130"/>
+      </circle>
+
+      <!-- under-box labels -->
+      <g font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">
+        <text x="90" y="150" text-anchor="middle">user authenticates</text>
+        <text x="255" y="150" text-anchor="middle">token exchange</text>
+        <text x="420" y="150" text-anchor="middle">delegated credential</text>
+        <text x="585" y="150" text-anchor="middle">cryptographic trail</text>
+      </g>
+    </svg>
+  </div>
+
+  <p style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:10px">OBO token anatomy</p>
+  <div class="token-anatomy">
+<span class="tok-k">{</span>
+  <span class="tok-s">"act"</span>: <span class="tok-k">{</span>
+    <span class="tok-s">"bu"</span>:              <span class="tok-s">"hr"</span>,
+    <span class="tok-s">"department"</span>:      <span class="tok-s">"ops"</span>,
+    <span class="tok-s">"service_group"</span>:   <span class="tok-s">"employee-mgmt"</span>
+  <span class="tok-k">}</span>,
+  <span class="tok-s">"actor"</span>: <span class="tok-k">{</span>
+    <span class="tok-s">"agentId"</span>:         <span class="tok-s">"emp-agent-a12"</span>
+  <span class="tok-k">}</span>,
+  <span class="tok-s">"sub"</span>:               <span class="tok-s">"alice"</span>,
+  <span class="tok-s">"scope"</span>:             <span class="tok-s">"agent.invoke"</span>
+<span class="tok-k">}</span>
+  </div>
+
+  <p style="font-size:13px;color:var(--text-muted);line-height:1.65;padding:12px 16px;background:var(--bg-warm);border-left:3px solid var(--pillar-trace);border-radius:4px">
+    <strong style="color:var(--text)">Vault's role.</strong> Vault issues the short-lived actor_token to each agent workload based on its platform identity. The IDP is configured to trust Vault as an OIDC issuer for agent identities. Revoke at Vault → all future token exchanges fail.
+  </p>
+</section>
+
+<section class="subsection" id="trace-repo" data-sub="In this repo">
+  <h3 class="subsection-title">In this repo</h3>
+  <details class="repo-card">
+    <summary><code>token-exchange/</code> FastAPI OBO broker (RFC 8693)</summary>
+    <div class="repo-body">Receives <code>subject_token</code> + <code>actor_token</code> and exchanges them with IBM Verify for a delegated OBO access token. Returns it to the agent for downstream API calls.</div>
+  </details>
+  <details class="repo-card">
+    <summary><code>web-app/auth/oauth.py</code> captures subject_token at login</summary>
+    <div class="repo-body">Streamlit UI authenticates the user via IBM Verify OAuth, captures the issued <code>subject_token</code> in the session, and passes it to the ai-agent on every request.</div>
+  </details>
+  <details class="repo-card">
+    <summary><code>ai-agent/</code> combines subject + actor → OBO call</summary>
+    <div class="repo-body">The agent reads the Vault-injected <code>actor_token</code>, takes the caller's <code>subject_token</code>, and calls <code>token-exchange</code> to obtain the delegated OBO credential. Every downstream call carries both identities.</div>
+  </details>
+</section>
 
 <!-- ===== CHAPTER 5 SLOT (Task 8) ===== -->
 
