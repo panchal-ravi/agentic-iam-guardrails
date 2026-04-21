@@ -440,6 +440,18 @@ details.repo-card .repo-body code { font-family: var(--mono); font-size: 12px;
 .ex-block.block .ex-result { background: rgba(196,40,58,0.06); color: var(--danger); }
 .ex-block.mask  .ex-result { background: rgba(184,115,51,0.06); color: var(--pillar-runtime); }
 @media (max-width:900px) { .guard-grid { grid-template-columns: 1fr; } }
+
+/* Observability stat grid */
+.obs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+  margin-bottom: 24px; }
+.obs-card { background: white; border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px 16px; border-left: 3px solid var(--pillar-observe); }
+.obs-card h4 { font-family: var(--serif); font-size: 14px; color: var(--text); margin-bottom: 4px; }
+.obs-card p  { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+.obs-card .obs-stat { display: inline-block; font-family: var(--mono); font-size: 10px;
+  background: rgba(45,122,79,0.1); color: var(--pillar-observe);
+  padding: 2px 7px; border-radius: 3px; margin-top: 8px; }
+@media (max-width:900px) { .obs-grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -1361,7 +1373,125 @@ aud:   "loan-api.bank.internal"</pre>
   </details>
 </section>
 
-<!-- ===== CHAPTER 6 SLOT (Task 9) ===== -->
+<div class="chapter-divider" id="observability" data-section="observability">
+  <div class="chapter-number">Chapter Six</div>
+  <div class="pillar-eyebrow p-observe">Pillar 4 · Observability</div>
+  <h2 class="chapter-title">You can't govern what you can't see</h2>
+  <p class="chapter-subtitle">Remove the guesswork. End-to-end visibility: trace every action, alert on every violation, keep an immutable audit trail.</p>
+</div>
+
+<section class="subsection" id="obs-problem" data-sub="The problem">
+  <h3 class="subsection-title">Without observability, agents operate as black boxes</h3>
+  <div class="before-after">
+    <div class="before">
+      <div class="ba-label">Nothing recorded</div>
+      <h4>Black-box agent</h4>
+      <ul>
+        <li>Invisible reasoning · silent policy breaches.</li>
+        <li>Untracked tool calls · no audit trail.</li>
+        <li>No way to answer "who did what, when, why?"</li>
+      </ul>
+    </div>
+    <div class="after">
+      <div class="ba-label">End-to-end visibility</div>
+      <h4>Trace · alert · audit</h4>
+      <ul>
+        <li>Capture every agent action and every policy decision.</li>
+        <li>Correlate identity + action, tied back to the human who asked.</li>
+        <li>Visualize, drill down, and act on real-time alerts.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="subsection" id="obs-how" data-sub="How it works">
+  <h3 class="subsection-title">Telemetry fan-out — how it works</h3>
+  <p class="subsection-desc">Capture → Correlate → Visualize → Act. One unified view across every agent, tool call, and policy decision.</p>
+
+  <div class="svg-diagram" id="svg-observability">
+    <svg viewBox="0 0 680 260" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="ob-shadow" x="-5%" y="-5%" width="110%" height="120%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.08"/>
+        </filter>
+      </defs>
+
+      <!-- Left: agent emitter -->
+      <g filter="url(#ob-shadow)"><rect x="20" y="100" width="140" height="60" rx="8" fill="white" stroke="#C4283A" stroke-width="1.5"/></g>
+      <text x="90" y="126" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#C4283A" font-weight="700">AGENT REPLICA</text>
+      <text x="90" y="142" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">OpenTelemetry emit</text>
+
+      <!-- Center: collector hub -->
+      <g filter="url(#ob-shadow)"><rect x="260" y="100" width="140" height="60" rx="8" fill="#F3FAF5" stroke="#2D7A4F" stroke-width="2"/></g>
+      <text x="330" y="126" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">TELEMETRY HUB</text>
+      <text x="330" y="142" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">identity · action · decision</text>
+
+      <!-- Right: three collectors -->
+      <g filter="url(#ob-shadow)"><rect x="500" y="30" width="160" height="50" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/></g>
+      <text x="580" y="52" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">TRACES</text>
+      <text x="580" y="68" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">reasoning · tool calls</text>
+
+      <g filter="url(#ob-shadow)"><rect x="500" y="105" width="160" height="50" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/></g>
+      <text x="580" y="127" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">METRICS</text>
+      <text x="580" y="143" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">decisions · latency</text>
+
+      <g filter="url(#ob-shadow)"><rect x="500" y="180" width="160" height="50" rx="8" fill="white" stroke="#2D7A4F" stroke-width="1.5"/></g>
+      <text x="580" y="202" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#2D7A4F" font-weight="700">ALERTS</text>
+      <text x="580" y="218" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">policy breach · anomaly</text>
+
+      <!-- Dashed telemetry paths with trace animation -->
+      <path d="M160,130 L260,130" stroke="#2D7A4F" stroke-width="1.5" fill="none"
+            stroke-dasharray="6,4" opacity="0.6">
+        <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.2s" repeatCount="indefinite"/>
+      </path>
+      <path id="ob-p1" d="M400,130 C450,130 450,55 500,55" stroke="#2D7A4F" stroke-width="1.5" fill="none" stroke-dasharray="6,4" opacity="0.6">
+        <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.2s" repeatCount="indefinite" begin="0.2s"/>
+      </path>
+      <path id="ob-p2" d="M400,130 L500,130" stroke="#2D7A4F" stroke-width="1.5" fill="none" stroke-dasharray="6,4" opacity="0.6">
+        <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.2s" repeatCount="indefinite" begin="0.4s"/>
+      </path>
+      <path id="ob-p3" d="M400,130 C450,130 450,205 500,205" stroke="#2D7A4F" stroke-width="1.5" fill="none" stroke-dasharray="6,4" opacity="0.6">
+        <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1.2s" repeatCount="indefinite" begin="0.6s"/>
+      </path>
+
+      <!-- Travelling particles -->
+      <circle r="3" fill="#2D7A4F"><animateMotion dur="2.5s" repeatCount="indefinite"><mpath href="#ob-p1"/></animateMotion></circle>
+      <circle r="3" fill="#2D7A4F"><animateMotion dur="2.5s" repeatCount="indefinite" begin="0.8s"><mpath href="#ob-p2"/></animateMotion></circle>
+      <circle r="3" fill="#2D7A4F"><animateMotion dur="2.5s" repeatCount="indefinite" begin="1.6s"><mpath href="#ob-p3"/></animateMotion></circle>
+    </svg>
+  </div>
+</section>
+
+<section class="subsection" id="obs-what" data-sub="What you see">
+  <h3 class="subsection-title">What you can see now</h3>
+  <div class="obs-grid">
+    <div class="obs-card"><h4>Agent activity</h4><p>Active agents, current tasks, success/failure trends.</p><span class="obs-stat">1,247 active · 42k req/hr · 99.1% OK</span></div>
+    <div class="obs-card"><h4>Policy violations</h4><p>Every block, mask, redaction — with top offenders by category.</p><span class="obs-stat">PII 312 · Prompt injection 89</span></div>
+    <div class="obs-card"><h4>Tool usage</h4><p>Which tools agents call most, failure spikes, drift.</p><span class="obs-stat">crm.lookup · 14k/hr · 99.2% OK</span></div>
+    <div class="obs-card"><h4>End-to-end journey</h4><p>Trace a single user request across every agent, tool, and API call on one timeline.</p><span class="obs-stat">User → HR agent → Policy → CRM API</span></div>
+    <div class="obs-card"><h4>Who did what</h4><p>Every agent action tied back to the human request behind it — for audit.</p><span class="obs-stat">alice@corp → hr-agent → update</span></div>
+    <div class="obs-card"><h4>Immutable audit logs</h4><p>Tamper-proof records tied to agent identity. Cryptographically verifiable.</p><span class="obs-stat">hash-chained · WORM</span></div>
+  </div>
+  <p style="font-size:14px;color:var(--text-muted);line-height:1.65;padding:12px 16px;background:var(--bg-warm);border-left:3px solid var(--pillar-observe);border-radius:4px">
+    <strong style="color:var(--text)">Full visibility.</strong> Answer <em>who did what, when, and why</em> — in seconds, not hours.
+  </p>
+</section>
+
+<section class="subsection" id="obs-repo" data-sub="In this repo">
+  <h3 class="subsection-title">In this repo</h3>
+  <details class="repo-card">
+    <summary><code>infra/module.observability</code> Prometheus + Grafana + Loki stack</summary>
+    <div class="repo-body">Terraform module that provisions the observability stack alongside the Consul / Vault platform — metrics, traces, and logs correlated on one identity axis.</div>
+  </details>
+  <details class="repo-card">
+    <summary><code>ai-agent/</code> OpenTelemetry emission for reasoning + tool spans</summary>
+    <div class="repo-body">The agent runtime emits parent-child spans for every reasoning chain and tool invocation, tagged with the replica's actor_token and the caller's subject_token for end-to-end correlation.</div>
+  </details>
+  <details class="repo-card">
+    <summary><code>deploy-k8s/</code> Envoy sidecar telemetry → trace collector</summary>
+    <div class="repo-body">Policy-engine PRE/POST decisions are emitted by the Envoy sidecar as structured events — a tamper-evident record of every allow / block / mask decision, immutably stored.</div>
+  </details>
+</section>
 
 <!-- ===== CHAPTER 7 SLOT (Task 10) ===== -->
 
