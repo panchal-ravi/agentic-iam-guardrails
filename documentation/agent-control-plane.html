@@ -741,7 +741,84 @@ aud:   "loan-api.bank.internal"</pre>
 
   <p style="font-size:14px;color:var(--text-muted);line-height:1.6;padding:12px 16px;background:var(--bg-warm);border-radius:6px;border-left:3px solid var(--pillar-trace)"><strong style="color:var(--text)">Banking example.</strong> Alice asks the loan-status agent about customer #12345. The Loan API sees that Alice requested it, agent <code>7a2f</code> carried it out, and access is scoped to <code>loans.read</code> only — nothing else.</p>
 </section>
-<!-- ===== CHAPTER 2C SLOT (Task 5c) ===== -->
+<section class="subsection" id="cp-handshake" data-sub="Handshake">
+  <h3 class="subsection-title">Human meets AI agent — the identity handshake</h3>
+  <p class="subsection-desc">The user proves who they are. The agent proves which instance it is. Token exchange turns both into a single scoped credential.</p>
+
+  <div class="svg-diagram" id="svg-handshake">
+    <svg viewBox="0 0 680 360" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="hs-shadow" x="-5%" y="-5%" width="110%" height="120%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.08"/>
+        </filter>
+      </defs>
+
+      <!-- HUMAN lane -->
+      <rect x="20" y="20" width="380" height="120" rx="10" fill="rgba(74,107,138,0.05)" stroke="#4A6B8A" stroke-width="1" stroke-dasharray="4,4"/>
+      <text x="36" y="40" font-family="JetBrains Mono,monospace" font-size="9" fill="#4A6B8A" font-weight="700" letter-spacing="2">HUMAN PATH</text>
+      <text x="36" y="54" font-family="Source Sans 3,sans-serif" font-size="10" fill="#6B6B6B">Who is asking?</text>
+
+      <g filter="url(#hs-shadow)"><rect x="40" y="70" width="130" height="56" rx="8" fill="white" stroke="#4A6B8A" stroke-width="1.5"/></g>
+      <text x="105" y="92" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#4A6B8A" font-weight="700">ALICE</text>
+      <text x="105" y="108" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">Loan officer</text>
+
+      <g filter="url(#hs-shadow)"><rect x="230" y="70" width="150" height="56" rx="8" fill="white" stroke="#4A6B8A" stroke-width="1.5"/></g>
+      <text x="305" y="92" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#4A6B8A" font-weight="700">USER TOKEN</text>
+      <text x="305" y="108" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="10" fill="#1A1A1A">subject_token · IDP-issued</text>
+
+      <!-- AGENT lane -->
+      <rect x="20" y="180" width="380" height="140" rx="10" fill="rgba(26,107,122,0.05)" stroke="#1A6B7A" stroke-width="1" stroke-dasharray="4,4"/>
+      <text x="36" y="200" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A" font-weight="700" letter-spacing="2">AGENT PATH</text>
+      <text x="36" y="214" font-family="Source Sans 3,sans-serif" font-size="10" fill="#6B6B6B">Which exact agent is running?</text>
+
+      <g filter="url(#hs-shadow)"><rect x="30" y="232" width="80" height="56" rx="8" fill="white" stroke="#1A6B7A" stroke-width="1.5"/></g>
+      <text x="70" y="254" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A" font-weight="700">AGENT POD</text>
+      <text x="70" y="270" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">K8s / Nomad</text>
+
+      <g filter="url(#hs-shadow)"><rect x="125" y="232" width="95" height="56" rx="8" fill="white" stroke="#1A6B7A" stroke-width="1.5"/></g>
+      <text x="172" y="254" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A" font-weight="700">PLATFORM ID</text>
+      <text x="172" y="270" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">auto-issued</text>
+
+      <g filter="url(#hs-shadow)"><rect x="235" y="232" width="70" height="56" rx="8" fill="white" stroke="#1A6B7A" stroke-width="1.5"/></g>
+      <text x="270" y="254" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A" font-weight="700">VAULT</text>
+      <text x="270" y="270" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">identity broker</text>
+
+      <g filter="url(#hs-shadow)"><rect x="320" y="232" width="70" height="56" rx="8" fill="white" stroke="#1A6B7A" stroke-width="1.5"/></g>
+      <text x="355" y="254" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A" font-weight="700">AGENT</text>
+      <text x="355" y="270" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">actor_token</text>
+
+      <!-- CENTER · TOKEN EXCHANGE + OBO -->
+      <g filter="url(#hs-shadow)"><rect x="440" y="130" width="120" height="80" rx="10" fill="#FFF8F2" stroke="#B87333" stroke-width="2"/></g>
+      <text x="500" y="155" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="10" fill="#B87333" font-weight="700" letter-spacing="1">TOKEN EXCHANGE</text>
+      <text x="500" y="172" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">IDP · RFC 8693</text>
+      <text x="500" y="195" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#6B6B6B">user + agent → delegated</text>
+
+      <g filter="url(#hs-shadow)"><rect x="580" y="160" width="90" height="50" rx="10" fill="white" stroke="#B87333" stroke-width="1.5"/></g>
+      <text x="625" y="180" text-anchor="middle" font-family="JetBrains Mono,monospace" font-size="9" fill="#B87333" font-weight="700">OBO TOKEN</text>
+      <text x="625" y="196" text-anchor="middle" font-family="Source Sans 3,sans-serif" font-size="9" fill="#1A1A1A">alice × 7a2f</text>
+
+      <!-- Paths -->
+      <path id="hs-p1" d="M170,98 L230,98" stroke="#4A6B8A" stroke-width="1.5" opacity="0.4"/>
+      <path id="hs-p2" d="M380,98 C440,98 440,150 440,170" fill="none" stroke="#4A6B8A" stroke-width="1.5" opacity="0.4"/>
+      <path id="hs-p3" d="M110,260 L125,260" stroke="#1A6B7A" stroke-width="1.5" opacity="0.4"/>
+      <path id="hs-p4" d="M220,260 L235,260" stroke="#1A6B7A" stroke-width="1.5" opacity="0.4"/>
+      <path id="hs-p5" d="M305,260 L320,260" stroke="#1A6B7A" stroke-width="1.5" opacity="0.4"/>
+      <path id="hs-p6" d="M390,260 C440,260 440,210 440,200" fill="none" stroke="#1A6B7A" stroke-width="1.5" opacity="0.4"/>
+      <path id="hs-p7" d="M560,185 L580,185" stroke="#B87333" stroke-width="1.5" opacity="0.5"/>
+
+      <!-- Particles -->
+      <circle r="3" fill="#4A6B8A"><animateMotion dur="2.5s" repeatCount="indefinite"><mpath href="#hs-p2"/></animateMotion></circle>
+      <circle r="3" fill="#1A6B7A"><animateMotion dur="2.5s" repeatCount="indefinite" begin="0.8s"><mpath href="#hs-p6"/></animateMotion></circle>
+      <circle r="3" fill="#B87333"><animateMotion dur="1.2s" repeatCount="indefinite" begin="1.6s"><mpath href="#hs-p7"/></animateMotion></circle>
+
+      <!-- subject_token and actor_token labels -->
+      <text x="410" y="115" font-family="JetBrains Mono,monospace" font-size="9" fill="#4A6B8A" font-weight="600">subject_token</text>
+      <text x="410" y="240" font-family="JetBrains Mono,monospace" font-size="9" fill="#1A6B7A" font-weight="600">actor_token</text>
+    </svg>
+  </div>
+
+  <p style="font-size:14px;color:var(--text-muted);line-height:1.6;padding:12px 16px;background:var(--bg-warm);border-radius:6px;border-left:3px solid var(--pillar-runtime)"><strong style="color:var(--text)">In practice.</strong> Alice logs into the banking app. Separately, the loan-status agent receives its identity from Vault. When the agent calls the Loan API on Alice's behalf, both credentials combine into one — so the API knows <em>who asked</em> and <em>which agent carried it out</em>.</p>
+</section>
 
 <!-- ===== CHAPTER 3 SLOT (Task 6) ===== -->
 
