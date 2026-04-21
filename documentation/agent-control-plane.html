@@ -468,6 +468,7 @@ details.repo-card .repo-body code { font-family: var(--mono); font-size: 12px;
 </style>
 </head>
 <body>
+<a href="#landing" style="position:absolute;left:-9999px;top:0" onfocus="this.style.left='10px';this.style.top='10px';this.style.zIndex='1000';this.style.background='white';this.style.padding='8px 12px';this.style.border='1px solid var(--red)';this.style.borderRadius='6px'" onblur="this.style.left='-9999px'">Skip to content</a>
 
 <!-- PROGRESS BAR -->
 <div id="progress-bar"></div>
@@ -513,7 +514,7 @@ details.repo-card .repo-body code { font-family: var(--mono); font-size: 12px;
 </div>
 
 <!-- BOTTOM NAV -->
-<div id="nav-bar" class="hidden">
+<div id="nav-bar" role="contentinfo" class="hidden">
   <div class="nav-inner">
     <button id="nav-prev" class="nav-btn prev" onclick="navPrev()">
       <span class="nav-arrow">←</span>
@@ -530,6 +531,7 @@ details.repo-card .repo-body code { font-family: var(--mono); font-size: 12px;
   </div>
 </div>
 
+<main>
 <section id="landing">
   <div class="landing-eyebrow">Agentic Security Overview</div>
   <h1 class="landing-headline">Securing AI Agents at Enterprise Scale</h1>
@@ -1554,6 +1556,7 @@ aud:   "loan-api.bank.internal"</pre>
     </div>
   </details>
 </section>
+</main>
 
 <script>
 // -------- Progress bar --------
