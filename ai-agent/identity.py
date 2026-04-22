@@ -25,7 +25,12 @@ class CachedToken:
 
 
 def read_actor_token(actor_token_path: Path, logger: logging.Logger) -> str:
-    log_event(logger, "actor_token_path_used", actor_token_path=str(actor_token_path))
+    log_event(
+        logger,
+        "actor_token_path_used",
+        level=logging.DEBUG,
+        actor_token_path=str(actor_token_path),
+    )
 
     if not actor_token_path.exists():
         raise AppError(
@@ -144,6 +149,7 @@ def perform_token_exchange(
     log_event(
         logger,
         "identity_broker_call",
+        message="Calling identity broker for OBO token exchange",
         request_id=request_id,
         token_exchange_url=settings.token_exchange_url,
     )
@@ -192,6 +198,7 @@ def perform_token_exchange(
     log_event(
         logger,
         "obo_token_exchange_completed",
+        message="OBO token exchange completed",
         request_id=request_id,
         expiry_time=expiry_time,
         obo_token_present=True,
@@ -254,6 +261,7 @@ class OboTokenService:
                 log_event(
                     self.logger,
                     "token_cache_miss",
+                    level=logging.DEBUG,
                     request_id=request_id,
                     cache_key=cache_key,
                 )
@@ -266,6 +274,7 @@ class OboTokenService:
             log_event(
                 self.logger,
                 "token_cache_hit",
+                level=logging.DEBUG,
                 request_id=request_id,
                 cache_key=cache_key,
                 expiry_time=cached_entry.expiry_time,
@@ -285,6 +294,7 @@ class OboTokenService:
                 log_event(
                     self.logger,
                     "token_cache_hit",
+                    level=logging.DEBUG,
                     request_id=request_id,
                     cache_key=cache_key,
                     expiry_time=cached_entry.expiry_time,
@@ -295,6 +305,7 @@ class OboTokenService:
             log_event(
                 self.logger,
                 "token_cache_miss",
+                level=logging.DEBUG,
                 request_id=request_id,
                 cache_key=cache_key,
             )

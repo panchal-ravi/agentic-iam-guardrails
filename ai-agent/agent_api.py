@@ -19,7 +19,11 @@ from logging_utils import (
     reset_log_context,
 )
 from models import AgentTokensResponse, ChatRequest
-from security import extract_bearer_token, validate_access_token
+from security import (
+    extract_bearer_token,
+    extract_obo_identity_claims,
+    validate_access_token,
+)
 from tools import TOOLS
 
 SETTINGS = load_settings()
@@ -45,11 +49,12 @@ def _error_response(request: Request, status_code: int, error: str, message: str
         LOGGER,
         "request_failed",
         level=logging.ERROR,
+        message="Request failed",
         request_id=request_id,
         path=request.url.path,
         status_code=status_code,
         error=error,
-        message=message,
+        error_message=message,
     )
     return JSONResponse(
         status_code=status_code,
@@ -86,6 +91,7 @@ def create_app(
             log_event(
                 LOGGER,
                 "request_received",
+                level=logging.DEBUG,
                 request_id=request_id,
                 path=request.url.path,
                 method=request.method,
@@ -98,6 +104,7 @@ def create_app(
                 log_event(
                     LOGGER,
                     "response_sent",
+                    level=logging.DEBUG,
                     request_id=request_id,
                     path=request.url.path,
                     status_code=response.status_code,
@@ -142,6 +149,7 @@ def create_app(
                 access_token,
                 request.state.request_id,
             )
+        identity_claims = extract_obo_identity_claims(obo_token)
         return request.app.state.agent_runtime.handle_request(
             chat_request=chat_request,
             obo_token=obo_token,
@@ -149,6 +157,8 @@ def create_app(
             request_path=request.url.path,
             request_method=request.method,
             client_ip=request.state.client_ip,
+            preferred_username=identity_claims["preferred_username"],
+            actor_agent_id=identity_claims["actor_agent_id"],
         )
 
     @app.get("/v1/agent/tokens", response_model=AgentTokensResponse)

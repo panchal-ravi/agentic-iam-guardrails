@@ -3,10 +3,10 @@ import re
 
 import streamlit as st
 
-from auth.session import get_access_token, get_user_info
+from auth.session import get_access_token, get_preferred_username, get_user_info
 from components.html_embed import render_html_fragment
 from components.navbar import render_access_token_expander, render_token_contents
-from observability import get_logger
+from observability import get_logger, rotate_request_id
 from services.agent_api import get_agent_tokens, stream_agent_response
 from services.response_normalization import normalize_message_content
 
@@ -229,6 +229,12 @@ def _clear_chat() -> None:
     st.session_state["agent_tokens_error"] = ""
     st.session_state["agent_tokens_loaded"] = False
     st.session_state["chat_open"] = True
+    new_request_id = rotate_request_id(st.session_state)
+    LOGGER.info(
+        "Started new chat conversation with request_id=%s preferred_username=%s",
+        new_request_id,
+        get_preferred_username(),
+    )
 
 
 def _render_left_panel() -> None:

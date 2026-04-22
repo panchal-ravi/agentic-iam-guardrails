@@ -268,6 +268,15 @@ def bind_request_context(
     return request_id
 
 
+def rotate_request_id(session_state: MutableMapping[str, Any]) -> str:
+    """Generate a fresh request ID and bind it for the current session."""
+    new_request_id = str(uuid.uuid4())
+    _request_id_var.set(new_request_id)
+    session_state["request_id"] = new_request_id
+    session_state.pop("_logged_request_id", None)
+    return new_request_id
+
+
 def get_request_id() -> str:
     """Return the active request ID, creating one if needed."""
     request_id = _request_id_var.get().strip()

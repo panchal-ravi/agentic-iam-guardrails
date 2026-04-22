@@ -48,7 +48,7 @@ def load_settings() -> Settings:
     configure_logging(settings.log_level)
     serialized_settings = asdict(settings)
     serialized_settings["actor_token_path"] = str(settings.actor_token_path)
-    log_event(LOGGER, "settings_loaded", **serialized_settings)
+    log_event(LOGGER, "settings_loaded", message="Settings loaded", **serialized_settings)
     return settings
 
 

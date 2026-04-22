@@ -1,6 +1,7 @@
 """Session management: auth guard and theme injection."""
 
 import os
+import jwt
 import streamlit as st
 
 from observability import get_logger
@@ -84,6 +85,18 @@ def get_access_token() -> str:
 def get_user_info() -> dict:
     """Return the current session's user info dict."""
     return st.session_state.get("user_info", {})
+
+
+def get_preferred_username() -> str:
+    """Return the preferred_username claim from the session's access token."""
+    access_token = get_access_token()
+    if not access_token:
+        return ""
+    try:
+        claims = jwt.decode(access_token, options={"verify_signature": False})
+    except jwt.PyJWTError:
+        return ""
+    return claims.get("preferred_username", "") or ""
 
 
 def logout() -> None:

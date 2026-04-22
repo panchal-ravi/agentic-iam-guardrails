@@ -63,15 +63,28 @@ class AgentRuntime:
         request_path: str,
         request_method: str,
         client_ip: str | None,
+        preferred_username: str | None = None,
+        actor_agent_id: str | None = None,
     ) -> StreamingResponse:
         langchain_messages = [
             SystemMessage(content=SYSTEM_PROMPT)
         ] + _to_langchain_messages(chat_request.messages)
         downstream_headers = _build_downstream_headers(obo_token)
+        user_message_text = _extract_last_user_message(chat_request.messages)
 
         log_event(
             self.logger,
+            "agent_request_started",
+            message="Agent started processing user request",
+            request_id=request_id,
+            preferred_username=preferred_username,
+            actor_agent_id=actor_agent_id,
+            user_message=user_message_text,
+        )
+        log_event(
+            self.logger,
             "agent_execution",
+            level=logging.DEBUG,
             request_id=request_id,
             stage="invoke",
         )
@@ -96,10 +109,20 @@ class AgentRuntime:
                 request_path=request_path,
                 request_method=request_method,
                 client_ip=client_ip,
+                preferred_username=preferred_username,
+                actor_agent_id=actor_agent_id,
+                user_message=user_message_text,
                 logger=self.logger,
             ),
             media_type="text/plain",
         )
+
+
+def _extract_last_user_message(messages: list[Any]) -> str:
+    for message in reversed(messages):
+        if message.role == "user":
+            return message.content
+    return ""
 
 
 def _to_langchain_messages(messages: list[Any]) -> List[BaseMessage]:
@@ -156,6 +179,7 @@ def _execute_tool_calls(
         log_event(
             logger,
             "agent_execution",
+            message=f"Invoking tool {tool_name}",
             request_id=request_id,
             stage="tool_call",
             tool_name=tool_name,
@@ -179,6 +203,7 @@ def _execute_tool_calls(
         log_event(
             logger,
             "agent_execution",
+            message=f"Tool {tool_name} completed",
             request_id=request_id,
             stage="tool_result",
             tool_name=tool_name,
@@ -232,6 +257,9 @@ def _stream_text_chunks(
     request_path: str,
     request_method: str,
     client_ip: str | None,
+    preferred_username: str | None,
+    actor_agent_id: str | None,
+    user_message: str,
     logger: logging.Logger,
 ) -> Iterator[str]:
     response_parts: list[str] = []
@@ -245,10 +273,14 @@ def _stream_text_chunks(
         log_event(
             logger,
             "response_sent",
+            message="Agent finished processing user request",
             request_id=request_id,
             path=request_path,
             http_method=request_method,
             client_ip=client_ip,
+            preferred_username=preferred_username,
+            actor_agent_id=actor_agent_id,
+            user_message=user_message,
             response_text="".join(response_parts),
             status_code=200,
         )

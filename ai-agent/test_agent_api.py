@@ -77,6 +77,21 @@ def _jwt_with_expiry(offset_seconds: int) -> str:
     return b".".join([header, payload, signature]).decode("utf-8")
 
 
+def _jwt_with_claims(offset_seconds: int, **extra_claims) -> str:
+    header = base64.urlsafe_b64encode(
+        json.dumps({"alg": "none", "typ": "JWT"}, separators=(",", ":")).encode(
+            "utf-8"
+        )
+    ).rstrip(b"=")
+    claims = {"sub": "user-123", "exp": int(time.time()) + offset_seconds}
+    claims.update(extra_claims)
+    payload = base64.urlsafe_b64encode(
+        json.dumps(claims, separators=(",", ":")).encode("utf-8")
+    ).rstrip(b"=")
+    signature = b"signature"
+    return b".".join([header, payload, signature]).decode("utf-8")
+
+
 def _structured_log_records(caplog, logger_name: str):
     structured_logs = []
     for record in caplog.records:
@@ -668,3 +683,115 @@ def test_create_app_builds_runtime_from_configured_model(monkeypatch):
         "kwargs": {"streaming": True},
     }
     assert isinstance(app.state.agent_runtime, AgentRuntime)
+
+
+def test_agent_request_started_is_logged_with_identity(monkeypatch, caplog):
+    client = TestClient(agent_api.app)
+    access_token = _jwt_with_expiry(300)
+    obo_token = _jwt_with_claims(
+        600,
+        preferred_username="alice@example.com",
+        actor={"agent_id": "agent-42"},
+    )
+
+    monkeypatch.setattr(
+        agent_api.app.state.token_service,
+        "perform_token_exchange",
+        lambda subject_token, actor_token, request_id: (obo_token, time.time() + 600),
+    )
+
+    with caplog.at_level(logging.INFO, logger="agent_api"):
+        response = client.post(
+            "/v1/agent/query",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"messages": [{"role": "user", "content": "hello there"}]},
+        )
+
+    assert response.status_code == 200
+
+    started_logs = [
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("event") == "agent_request_started"
+    ]
+    assert started_logs
+    assert started_logs[-1]["level"] == "INFO"
+    assert started_logs[-1]["message"] == "Agent started processing user request"
+    assert started_logs[-1]["preferred_username"] == "alice@example.com"
+    assert started_logs[-1]["actor_agent_id"] == "agent-42"
+    assert started_logs[-1]["user_message"] == "hello there"
+
+
+def test_response_sent_includes_identity_and_user_message(monkeypatch, caplog):
+    client = TestClient(agent_api.app)
+    access_token = _jwt_with_expiry(300)
+    obo_token = _jwt_with_claims(
+        600,
+        preferred_username="bob@example.com",
+        actor={"agent_id": "agent-99"},
+    )
+
+    monkeypatch.setattr(
+        agent_api.app.state.token_service,
+        "perform_token_exchange",
+        lambda subject_token, actor_token, request_id: (obo_token, time.time() + 600),
+    )
+
+    with caplog.at_level(logging.INFO, logger="agent_api"):
+        response = client.post(
+            "/v1/agent/query",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"messages": [{"role": "user", "content": "what is up"}]},
+        )
+
+    assert response.status_code == 200
+
+    response_logs = [
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("event") == "response_sent"
+    ]
+    assert response_logs
+    assert response_logs[-1]["level"] == "INFO"
+    assert response_logs[-1]["message"] == "Agent finished processing user request"
+    assert response_logs[-1]["preferred_username"] == "bob@example.com"
+    assert response_logs[-1]["actor_agent_id"] == "agent-99"
+    assert response_logs[-1]["user_message"] == "what is up"
+
+
+def test_demoted_events_are_not_emitted_at_info(monkeypatch, caplog):
+    client = TestClient(agent_api.app)
+    access_token = _jwt_with_expiry(300)
+
+    monkeypatch.setattr(
+        agent_api.app.state.token_service,
+        "perform_token_exchange",
+        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+    )
+
+    with caplog.at_level(logging.INFO, logger="agent_api"):
+        first = client.post(
+            "/v1/agent/query",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"messages": [{"role": "user", "content": "hello"}]},
+        )
+        second = client.post(
+            "/v1/agent/query",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={"messages": [{"role": "user", "content": "again"}]},
+        )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+    info_records = _structured_log_records(caplog, "agent_api")
+    info_events = {payload.get("event") for payload in info_records}
+    info_stages = {
+        (payload.get("event"), payload.get("stage"))
+        for payload in info_records
+    }
+    assert "request_received" not in info_events
+    assert "actor_token_path_used" not in info_events
+    assert "token_cache_hit" not in info_events
+    assert "token_cache_miss" not in info_events
+    assert ("agent_execution", "invoke") not in info_stages

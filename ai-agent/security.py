@@ -62,6 +62,25 @@ def decode_jwt_payload(token: str, token_label: str) -> dict[str, Any]:
     return payload
 
 
+def extract_obo_identity_claims(obo_token: str | None) -> dict[str, str | None]:
+    if not obo_token:
+        return {"preferred_username": None, "actor_agent_id": None}
+
+    try:
+        payload = decode_jwt_payload(obo_token, "OBO token")
+    except AppError:
+        return {"preferred_username": None, "actor_agent_id": None}
+
+    preferred_username = payload.get("preferred_username")
+    actor = payload.get("actor")
+    actor_agent_id = actor.get("agent_id") if isinstance(actor, dict) else None
+
+    return {
+        "preferred_username": preferred_username if isinstance(preferred_username, str) else None,
+        "actor_agent_id": actor_agent_id if isinstance(actor_agent_id, str) else None,
+    }
+
+
 def validate_access_token(access_token: str) -> dict[str, Any]:
     payload = decode_jwt_payload(access_token, "Bearer token")
     now = time.time()
