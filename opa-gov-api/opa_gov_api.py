@@ -7,7 +7,7 @@ from time import perf_counter
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 
 from opa_client import (
     MaskResult,
@@ -24,6 +24,12 @@ from structured_logging import (
     reset_request_id,
     set_request_fields,
     set_request_id,
+)
+from telemetry import (
+    PII_MASKING_SUCCESSFUL_COUNTER,
+    PROMPT_INJECTION_COUNTER,
+    UNSAFE_CODE_COUNTER,
+    render_metrics,
 )
 
 load_dotenv()
@@ -146,6 +152,12 @@ async def request_context_middleware(request: Request, call_next):
         reset_request_id(context_token)
 
 
+@app.get("/metrics")
+async def metrics_endpoint():
+    payload, content_type = render_metrics()
+    return Response(content=payload, media_type=content_type)
+
+
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
@@ -243,6 +255,10 @@ async def evaluate(http_request: Request):
             is_unsafe=flags["is_unsafe"],
             status_code=400,
         )
+        if flags["is_injection"]:
+            PROMPT_INJECTION_COUNTER.add(1)
+        if flags["is_unsafe"]:
+            UNSAFE_CODE_COUNTER.add(1)
         return PlainTextResponse(BLOCKED_CONTENT_MESSAGE, status_code=400)
 
     log_event(
@@ -289,6 +305,9 @@ async def mask(http_request: Request):
         if result.is_string
         else len(json.dumps(result.value).encode("utf-8"))
     )
+    pii_changed = (
+        result.value != text if result.is_string else True
+    )
     log_event(
         logger,
         logging.INFO,
@@ -297,8 +316,11 @@ async def mask(http_request: Request):
         request_id=request_id,
         is_string=result.is_string,
         output_bytes=output_bytes,
+        pii_changed=pii_changed,
         status_code=200,
     )
+    if pii_changed:
+        PII_MASKING_SUCCESSFUL_COUNTER.add(1)
 
     if result.is_string:
         return PlainTextResponse(result.value, status_code=200)

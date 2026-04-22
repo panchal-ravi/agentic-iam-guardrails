@@ -48,6 +48,10 @@ externalServers:
 connectInject:
   enabled: true
   # envoyExtraArgs: "--log-level info"
+  metrics:
+    defaultEnabled: true
+    defaultEnableMerging: true
+    defaultMergedMetricsPort: 20100
   consulNamespaces:
     mirroringK8S: true
   sidecarProxy:

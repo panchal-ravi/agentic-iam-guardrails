@@ -20,6 +20,7 @@
 | POST   | `/mask`     | Raw text (UTF-8), ≤1 MiB      | `200 OK` with `text/plain` or `application/json`    | `400` invalid payload; `413` oversize; `200` fail-open echo; `502` fail-closed    |
 | GET    | `/healthz`  | —                             | `200 OK` `{"status":"ok"}`                          | —                                                                                 |
 | GET    | `/readyz`   | —                             | `200 OK` `{"status":"ready"}` when OPA reachable    | `503` `{"status":"not_ready"}`                                                    |
+| GET    | `/metrics`  | —                             | `200 OK` Prometheus exposition (`text/plain`)       | —                                                                                 |
 
 ### `/evaluate`
 
@@ -85,9 +86,18 @@ The default matches the pre-existing Lua filter, which logs and continues on OPA
 
 Every event includes `request_id`; `opa.upstream.failed` includes the underlying context (`path`, `status`, `error_class`, truncated `body`).
 
+### `/metrics`
+
+- Prometheus exposition format over HTTP. Scraped on the same port as the API.
+- Counters (see `specs/metrics.md` for the full contract):
+  - `opa_prompt_injection_total` — `/evaluate` blocks where `is_injection=true`.
+  - `opa_unsafe_code_total` — `/evaluate` blocks where `is_unsafe=true`.
+  - `opa_pii_masking_successful_total` — `/mask` successes where output differs from input (real PII masking, not fail-open echo).
+- No labels. No authentication — gate with Consul intentions or NetworkPolicy if needed.
+
 ## Environment variables
 
-See `.env.example` for canonical defaults. Required: `OPA_BASE_URL`. Everything else has a safe default.
+See `.env.example` for canonical defaults. Required: `OPA_BASE_URL`. Everything else has a safe default. `OTEL_SERVICE_NAME` (default `opa-gov-api`) and `OTEL_SERVICE_VERSION` (default `0.1.0`) populate resource attributes on the `MeterProvider` and also drive the `service` field in structured logs.
 
 ## Testing contract
 

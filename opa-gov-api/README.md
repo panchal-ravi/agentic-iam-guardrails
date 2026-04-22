@@ -7,7 +7,7 @@ The service exposes two endpoints:
 - `POST /evaluate`: security check (prompt injection + unsafe code). Returns 200 when the request is allowed and 400 when it is blocked.
 - `POST /mask`: PII masking. Returns the masked body (plain text or JSON) that the caller can substitute in place of the original response.
 
-Plus `GET /healthz` (liveness) and `GET /readyz` (probes OPA's `/health`).
+Plus `GET /healthz` (liveness), `GET /readyz` (probes OPA's `/health`), and `GET /metrics` (Prometheus-format OpenTelemetry counters for prompt-injection blocks, unsafe-code blocks, and successful PII masking).
 
 ## How it works
 
@@ -36,7 +36,8 @@ cp .env.example .env
 | `MAX_BODY_BYTES` | no | `1048576` | Request body size limit in bytes. Oversize returns 413. |
 | `BLOCKED_CONTENT_MESSAGE` | no | `This content was blocked due to security policy violation` | Body returned on 400 from `/evaluate`. |
 | `LOG_LEVEL` | no | `INFO` | Root log level. |
-| `LOG_SERVICE_NAME` / `OTEL_SERVICE_NAME` | no | `opa-gov-api` | Override the `service` field in structured logs. |
+| `LOG_SERVICE_NAME` / `OTEL_SERVICE_NAME` | no | `opa-gov-api` | Override the `service` field in structured logs and the `service.name` resource attribute on metrics. |
+| `OTEL_SERVICE_VERSION` | no | `0.1.0` | `service.version` resource attribute on metrics. |
 | `HOST_IP` | no | auto-resolved | Override the `host_ip` field in structured logs. |
 | `PORT` | no | `8000` | API server port. |
 
@@ -225,11 +226,28 @@ curl -s http://localhost:8000/readyz
 # {"status":"ready"}   (200 when OPA's /health responds)
 ```
 
+### Metrics
+
+The service exposes OpenTelemetry counters in Prometheus exposition format on the same port as the API:
+
+```bash
+curl -s http://localhost:8000/metrics | grep -E '^opa_'
+```
+
+| Metric | Type | When it increments |
+|---|---|---|
+| `opa_prompt_injection_total` | counter | `/evaluate` blocks the request with `is_injection=true`. |
+| `opa_unsafe_code_total` | counter | `/evaluate` blocks the request with `is_unsafe=true`. |
+| `opa_pii_masking_successful_total` | counter | `/mask` returns 200 and the masked output differs from the input (real PII masking — fail-open echoes do not count). |
+
+Both security flags track independently: a single `/evaluate` call flagged for both injection and unsafe code increments both counters. Counters are unlabeled to keep Prometheus cardinality flat. See [`specs/metrics.md`](specs/metrics.md) for the full contract.
+
 ## Behavior notes
 
 - **Masking envelope unwrapping.** OPA returns `{"result": <value>}` for `masked_result`. The current Envoy Lua filter pipes that envelope verbatim as the new response body, so downstream clients receive JSON instead of the masked content. `opa-gov-api` unwraps `result` by default. Set `OPA_MASK_UNWRAP=false` if you need the legacy envelope shape.
 - **Fail-open.** If OPA is unreachable or returns a malformed body, `/evaluate` returns 200 "allowed" and `/mask` echoes the original body, with a `WARNING` log event `opa.upstream.failed`. Flip with `OPA_FAIL_MODE=closed` for strict mode.
 - **Body size limit.** Enforced via `MAX_BODY_BYTES`. Oversize yields 413 and event `opa.request.body_too_large`.
+- **Metrics on the main port.** `/metrics` is served on the same port as the API. Restrict scraping via Consul `ServiceIntentions` or Kubernetes `NetworkPolicy` at deploy time if needed — there is no built-in authentication.
 
 ## References
 

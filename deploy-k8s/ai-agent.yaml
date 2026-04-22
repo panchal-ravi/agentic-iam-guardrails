@@ -23,6 +23,7 @@ spec:
 
         # The "path" parameter for the JWT auth method is passed via this annotation:
         vault.hashicorp.com/auth-config-path: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+        vault.hashicorp.com/auth-config-remove-jwt-after-reading: "false"
         
         # The template to fetch the OIDC token and write it to disk
         vault.hashicorp.com/agent-inject-secret-actor-token: "identity/oidc/token/agent-role"
