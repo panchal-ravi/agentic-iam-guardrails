@@ -11,119 +11,245 @@ spec:
       proxyType: "connect-proxy"
       listener: "inbound"
       script: |-
-        function envoy_on_request(request_handle)
-          local body = request_handle:body()
-          local body_str = body:getBytes(0, body:length())
-          request_handle:logInfo("wx-gov-api inbound request: " .. body_str)
+        -- ==========================================================
+        -- Thin Lua filter: delegates policy + masking to wx-gov-api.
+        -- Request path  -> POST base64(body) to /evaluate (400 = block)
+        -- Response path -> POST base64(body) to /mask and replace body
+        -- ==========================================================
 
-          local stream_info = request_handle:streamInfo()
-          local dynamic_metadata = stream_info:dynamicMetadata()
-          local trust_domain = nil
-          local datacenter = nil
-          if dynamic_metadata and dynamic_metadata:get("consul") then
-            local consul_ns = dynamic_metadata:get("consul")
-            trust_domain = tostring(consul_ns["trust-domain"])
-            datacenter = tostring(consul_ns["datacenter"])
+        local WX_GOV_TIMEOUT_MS = 30000
+        local WX_GOV_PATH_EVALUATE = "/evaluate"
+        local WX_GOV_PATH_MASK = "/mask"
+
+        -- ==========================================================
+        -- Structured JSON logging helpers (match Python log schema):
+        -- {host_name, host_ip, module, function, line, process_id,
+        --  thread_name, request_id, event, message, ...}
+        -- ==========================================================
+        local LOG_MODULE = "envoy_lua_wx_gov_filter"
+
+        local function _safe_getenv(name)
+          local ok, value = pcall(os.getenv, name)
+          if ok and value and value ~= "" then return value end
+          return nil
+        end
+
+        local HOST_NAME = _safe_getenv("HOSTNAME") or "-"
+        local HOST_IP = _safe_getenv("HOST_IP") or "-"
+
+        local function _json_escape(s)
+          s = tostring(s)
+          s = string.gsub(s, "\\", "\\\\")
+          s = string.gsub(s, '"', '\\"')
+          s = string.gsub(s, "\n", "\\n")
+          s = string.gsub(s, "\r", "\\r")
+          s = string.gsub(s, "\t", "\\t")
+          return s
+        end
+
+        local function _json_value(v)
+          if v == nil then return "null" end
+          local t = type(v)
+          if t == "number" or t == "boolean" then return tostring(v) end
+          return '"' .. _json_escape(v) .. '"'
+        end
+
+        local function _json_encode_ordered(pairs_list)
+          local parts = {}
+          for i = 1, #pairs_list do
+            local kv = pairs_list[i]
+            parts[#parts + 1] = '"' .. _json_escape(kv[1]) .. '":' .. _json_value(kv[2])
           end
-          
-          local wxg_service = "wx-gov-api.default." .. datacenter .. ".internal." .. trust_domain
-          local request_id = request_handle:headers():get("x-request-id") or request_handle:headers():get("X-Request-ID")
+          return "{" .. table.concat(parts, ",") .. "}"
+        end
 
-          -- Prepare wx-gov-api POST request
+        local function _resolve_request_id(handle)
+          local headers = handle:headers()
+          local rid = headers:get("x-request-id") or headers:get("X-Request-ID")
+          if rid and rid ~= "" then return rid end
+          local ok, sid = pcall(function() return handle:streamInfo():requestID() end)
+          if ok and sid and sid ~= "" then return sid end
+          return "-"
+        end
+
+        local function log_event(handle, level, func_name, event, message, extra)
+          local fields = {
+            {"host_name", HOST_NAME},
+            {"host_ip", HOST_IP},
+            {"module", LOG_MODULE},
+            {"function", func_name or "-"},
+            {"line", 0},
+            {"process_id", 0},
+            {"thread_name", "envoy-worker"},
+            {"request_id", _resolve_request_id(handle)},
+            {"event", event},
+            {"message", message},
+          }
+          if extra then
+            for i = 1, #extra do fields[#fields + 1] = extra[i] end
+          end
+          local payload = _json_encode_ordered(fields)
+          if level == "warn" then handle:logWarn(payload)
+          elseif level == "err" or level == "error" then handle:logErr(payload)
+          elseif level == "debug" then handle:logDebug(payload)
+          else handle:logInfo(payload) end
+        end
+
+        -- Resolve the Consul FQDN for wx-gov-api from dynamic metadata.
+        -- Returns nil if the sidecar has not populated the consul namespace.
+        local function resolve_wx_gov_service(handle)
+          local md = handle:streamInfo():dynamicMetadata()
+          if not md then return nil end
+          local consul_ns = md:get("consul")
+          if not consul_ns or type(consul_ns) ~= "table" then return nil end
+          local trust_domain = consul_ns["trust-domain"]
+          local datacenter = consul_ns["datacenter"]
+          if not trust_domain or not datacenter then return nil end
+          return "wx-gov-api.default." .. datacenter .. ".internal." .. trust_domain
+        end
+
+        -- POST base64-encoded body_str to wx-gov-api at the given path.
+        -- Returns (response_headers, response_body) or (nil, nil) on transport failure.
+        local function call_wx_gov(handle, wxg_service, path, body_str)
+          local request_id = handle:headers():get("x-request-id")
+            or handle:headers():get("X-Request-ID")
+            or handle:streamInfo():requestID()
           local headers = {
             [":method"] = "POST",
-            [":path"] = "/evaluate",
+            [":path"] = path,
             [":authority"] = wxg_service,
             ["content-type"] = "text/plain",
-            ["X-Request-ID"] = request_id
+            ["X-Request-ID"] = request_id,
           }
-
-          -- Base64 encode body_str using Envoy's built-in function
-          local encoded_body = request_handle:base64Escape(body_str)
-          local response_headers, response_body = request_handle:httpCall(
-            wxg_service, -- cluster name
-            headers,
-            encoded_body, -- body
-            30000 -- timeout in milliseconds
+          local encoded_body = handle:base64Escape(body_str or "")
+          return handle:httpCall(
+            wxg_service, headers, encoded_body, WX_GOV_TIMEOUT_MS
           )
-          
-          request_handle:logInfo("wx-gov-api response, pre-invoke agent: " .. response_body)
-          -- Check if response status code is 400 and log headers
-          local status_code = tonumber(response_headers[":status"])
-          request_handle:logInfo("wx-gov-api response status: " .. tostring(status_code))
-          if status_code == 400 then
-             -- Overwrite the response body with response_body from wx-gov-api
-            if response_body then
-              request_handle:body():setBytes(response_body)
-              -- Calculate the new content length
-              local content_length = request_handle:body():length()
-              -- Replace the 'content-length' header with the new length
-              request_handle:headers():replace("content-length", tostring(content_length))
-              request_handle:respond({[":status"] = "400"}, response_body)
-              return
-            end
-          end
         end
-  - name: "builtin/lua" # has to be this so it can be recognized by envoy
-    arguments:
-      proxyType: "connect-proxy"
-      listener: "inbound"
-      script: |-
-        function envoy_on_response(response_handle)
-          response_handle:logInfo("wx-gov-api outbound response...")
-          local status_code = tonumber(response_handle:headers():get(":status"))
-          response_handle:logInfo("wx-gov-api outbound response status: " .. tostring(status_code))
-          
-          if not status_code or status_code ~= 200 then
-            response_handle:logInfo("Skipping wx-gov-api /mask call for non-200 response")
+
+        -- ==========================================================
+        -- Request path: enforce inbound security policy via wx-gov-api.
+        -- ==========================================================
+        function envoy_on_request(request_handle)
+          log_event(request_handle, "info", "envoy_on_request",
+            "wx_gov.request.inbound", "wx-gov-api inbound request received")
+
+          local body = request_handle:body(true)
+          if not body or body:length() == 0 then
+            log_event(request_handle, "info", "envoy_on_request",
+              "wx_gov.request.body.empty",
+              "Inbound request body is empty; skipping /evaluate")
             return
           end
-          
-          local body = response_handle:body(true)
-          if body then
-            local body_str = body:getBytes(0, body:length())
-            local dynamic_metadata = response_handle:streamInfo():dynamicMetadata()
-            local trust_domain = nil
-            local datacenter = nil
-            if dynamic_metadata and dynamic_metadata:get("consul") then
-              local consul_ns = dynamic_metadata:get("consul")
-              if type(consul_ns) == "table" then
-                trust_domain = tostring(consul_ns["trust-domain"])
-                datacenter = tostring(consul_ns["datacenter"])
-              end
-            end
-            local wxg_service = "wx-gov-api.default." .. datacenter .. ".internal." .. trust_domain
-            local request_id = response_handle:headers():get("x-request-id") or response_handle:headers():get("X-Request-ID") or response_handle:streamInfo():requestID()
+          local body_str = body:getBytes(0, body:length())
+          log_event(request_handle, "info", "envoy_on_request",
+            "wx_gov.request.body.received",
+            "Inbound request body received",
+            {{"body_size", body:length()}, {"body", body_str}})
 
-            -- Prepare wx-gov-api POST request
-            local headers = {
-              [":method"] = "POST",
-              [":path"] = "/mask",
-              [":authority"] = wxg_service,
-              ["content-type"] = "text/plain",
-              ["X-Request-ID"] = request_id
-            }
-
-            local encoded_body = response_handle:base64Escape(body_str)
-            local response_headers, response_body = response_handle:httpCall(
-              wxg_service, -- cluster name
-              headers,
-              encoded_body, -- body
-              30000 -- timeout in milliseconds
-            )
-
-            response_handle:logInfo("wx-gov-api outbound response body: " .. body_str)
-            response_handle:logInfo("wx-gov-api response, post-invoke agent: " .. response_body)
-
-            -- Overwrite the response body with response_body from wx-gov-api
-            if response_body then
-              response_handle:body():setBytes(response_body)
-              -- Calculate the new content length
-              local content_length = response_handle:body():length()
-              -- Replace the 'content-length' header with the new length
-              response_handle:headers():replace("content-length", tostring(content_length))
-            end
-          else
-            response_handle:logInfo("wx-gov-api outbound response body: <empty>")
+          local wxg_service = resolve_wx_gov_service(request_handle)
+          if not wxg_service then
+            log_event(request_handle, "warn", "envoy_on_request",
+              "wx_gov.consul.metadata.missing",
+              "Missing Consul metadata; skipping wx-gov-api /evaluate")
+            return
           end
+          log_event(request_handle, "info", "envoy_on_request",
+            "wx_gov.service.resolved",
+            "Resolved wx-gov-api upstream service",
+            {{"wxg_service", wxg_service}})
+
+          local response_headers, response_body = call_wx_gov(
+            request_handle, wxg_service, WX_GOV_PATH_EVALUATE, body_str
+          )
+          if not response_headers then
+            log_event(request_handle, "warn", "envoy_on_request",
+              "wx_gov.evaluate.unreachable",
+              "wx-gov-api unreachable on /evaluate; fail-open")
+            return
+          end
+
+          local status_code = tonumber(response_headers[":status"])
+          log_event(request_handle, "info", "envoy_on_request",
+            "wx_gov.evaluate.response",
+            "wx-gov-api /evaluate response received (pre-invoke agent)",
+            {{"status_code", status_code}, {"response_body", response_body}})
+
+          if status_code == 400 and response_body then
+            log_event(request_handle, "info", "envoy_on_request",
+              "wx_gov.evaluate.blocked",
+              "Request blocked by wx-gov-api /evaluate",
+              {{"status_code", status_code},
+               {"body_preview", string.sub(body_str, 1, 100)}})
+            request_handle:respond({[":status"] = "400"}, response_body)
+            return
+          end
+        end
+
+        -- ==========================================================
+        -- Response path: mask outbound payload via wx-gov-api (200 only).
+        -- ==========================================================
+        function envoy_on_response(response_handle)
+          log_event(response_handle, "info", "envoy_on_response",
+            "wx_gov.response.outbound", "wx-gov-api outbound response received")
+
+          local status_code = tonumber(response_handle:headers():get(":status"))
+          log_event(response_handle, "info", "envoy_on_response",
+            "wx_gov.response.status",
+            "wx-gov-api outbound response status resolved",
+            {{"status_code", status_code}})
+
+          if not status_code or status_code ~= 200 then
+            log_event(response_handle, "info", "envoy_on_response",
+              "wx_gov.mask.skip",
+              "Skipping wx-gov-api /mask call for non-200 response",
+              {{"status_code", status_code}})
+            return
+          end
+
+          local body = response_handle:body(true)
+          if not body or body:length() == 0 then
+            log_event(response_handle, "info", "envoy_on_response",
+              "wx_gov.response.body.empty",
+              "wx-gov-api outbound response body is empty")
+            return
+          end
+
+          local wxg_service = resolve_wx_gov_service(response_handle)
+          if not wxg_service then
+            log_event(response_handle, "warn", "envoy_on_response",
+              "wx_gov.consul.metadata.missing",
+              "Missing Consul metadata; skipping wx-gov-api /mask")
+            return
+          end
+          log_event(response_handle, "info", "envoy_on_response",
+            "wx_gov.service.resolved",
+            "Resolved wx-gov-api upstream service",
+            {{"wxg_service", wxg_service}})
+
+          local body_str = body:getBytes(0, body:length())
+          log_event(response_handle, "info", "envoy_on_response",
+            "wx_gov.response.body.received",
+            "wx-gov-api outbound response body received",
+            {{"body_size", body:length()}, {"body", body_str}})
+
+          local response_headers, response_body = call_wx_gov(
+            response_handle, wxg_service, WX_GOV_PATH_MASK, body_str
+          )
+          if not response_headers or not response_body then
+            log_event(response_handle, "warn", "envoy_on_response",
+              "wx_gov.mask.unreachable",
+              "wx-gov-api unreachable on /mask; passing body through")
+            return
+          end
+
+          log_event(response_handle, "info", "envoy_on_response",
+            "wx_gov.mask.response",
+            "wx-gov-api /mask response received (post-invoke agent)",
+            {{"response_body", response_body}})
+
+          response_handle:body():setBytes(response_body)
+          response_handle:headers():replace(
+            "content-length", tostring(response_handle:body():length())
+          )
         end

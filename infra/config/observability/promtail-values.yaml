@@ -1,9 +1,22 @@
 config:
   clients:
     - url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+      external_labels:
+        cluster: ai-security-demo
   snippets:
     pipelineStages:
       - cri: {}
+      - drop:
+          expression: ".*/metrics.*"
+          drop_counter_reason: metrics_endpoint_noise
+      - match:
+          selector: '{container="consul-dataplane"} !~ "wx_gov\\.evaluate\\.blocked|opa_gov\\.evaluate\\.blocked"'
+          action: drop
+          drop_counter_reason: consul_dataplane_noise
+      - match:
+          selector: '{app="loki"}'
+          action: drop
+          drop_counter_reason: loki_self_logs
       - json:
           expressions:
             request_id: request_id
