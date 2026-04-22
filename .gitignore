@@ -57,6 +57,7 @@ secrets.*
 *.p12
 infra/config/edr/k8sosquery-values.yaml
 infra/config/edr/kubequery-values.yaml
+.playwright-cli
 
 *license*.*
 *scratch.md
