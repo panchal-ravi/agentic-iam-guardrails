@@ -303,7 +303,7 @@ def _stream_assistant_response(user_input: str) -> None:
     history = st.session_state["messages"][:]
     st.session_state["messages"].append({"role": "user", "content": user_input})
     st.session_state.pop("obo_token", None)
-    LOGGER.info("Submitting chat message with %s prior messages", len(history))
+    LOGGER.debug("Submitting chat message with %s prior messages", len(history))
 
     with st.chat_message("user", avatar="🧑"):
         _render_message_content("user", user_input)
@@ -330,12 +330,12 @@ def _stream_assistant_response(user_input: str) -> None:
             )
             if history or user_input.strip():
                 _refresh_agent_tokens()
-            LOGGER.info("Received streamed assistant response from agent API")
+            LOGGER.debug("Received streamed assistant response from agent API")
         except RuntimeError as exc:
             LOGGER.error("Chat submission failed: %s", exc)
             partial_response = normalize_message_content("".join(response_chunks)).strip()
             if partial_response:
-                LOGGER.warning(
+                LOGGER.debug(
                     "Preserving partial streamed assistant response after late error"
                 )
                 response_placeholder.markdown(_format_message_markdown(partial_response))

@@ -42,7 +42,7 @@ def _extract_agent_response(response: requests.Response) -> dict:
         if not response_text:
             raise RuntimeError("Agent API returned an empty response.")
 
-        _LOGGER.warning(
+        _LOGGER.debug(
             "Agent API returned non-JSON content-type=%s",
             response.headers.get("Content-Type", "<missing>"),
         )
@@ -191,11 +191,11 @@ def invoke_agent(message: str, history: list, access_token: str = "") -> dict:
     payload = _build_payload(message, history, stream=False)
 
     try:
-        _LOGGER.info("Invoking agent API at %s", _AGENT_URL)
+        _LOGGER.debug("Invoking agent API at %s", _AGENT_URL)
         response = requests.post(_AGENT_URL, json=payload, headers=headers, timeout=60)
         if not response.ok:
             _raise_agent_http_error(response, "Agent API returned HTTP %s")
-        _LOGGER.info("Agent API completed with status %s", response.status_code)
+        _LOGGER.debug("Agent API completed with status %s", response.status_code)
         return _extract_agent_response(response)
     except requests.RequestException as exc:
         _LOGGER.error("Agent API request failed: %s", exc)
@@ -210,11 +210,11 @@ def get_agent_tokens(access_token: str = "") -> dict[str, str]:
     headers = _build_headers(access_token)
 
     try:
-        _LOGGER.info("Fetching agent tokens from %s", _AGENT_TOKENS_URL)
+        _LOGGER.debug("Fetching agent tokens from %s", _AGENT_TOKENS_URL)
         response = requests.get(_AGENT_TOKENS_URL, headers=headers, timeout=30)
         if not response.ok:
             _raise_agent_http_error(response, "Agent tokens API returned HTTP %s")
-        _LOGGER.info("Agent tokens API completed with status %s", response.status_code)
+        _LOGGER.debug("Agent tokens API completed with status %s", response.status_code)
         return _extract_agent_tokens(response)
     except requests.RequestException as exc:
         _LOGGER.error("Agent tokens API request failed: %s", exc)
@@ -232,7 +232,7 @@ def stream_agent_response(
     payload = _build_payload(message, history, stream=True)
 
     try:
-        _LOGGER.info("Invoking streaming agent API at %s", _AGENT_URL)
+        _LOGGER.debug("Invoking streaming agent API at %s", _AGENT_URL)
         with requests.post(
             _AGENT_URL,
             json=payload,
@@ -265,7 +265,7 @@ def stream_agent_response(
                     yield normalize_message_content(pending_escape)
             except requests.RequestException as exc:
                 if streamed_chunks and _is_premature_stream_end(exc):
-                    _LOGGER.warning(
+                    _LOGGER.debug(
                         "Streaming agent API ended prematurely after %s chunks; preserving received content",
                         streamed_chunks,
                     )

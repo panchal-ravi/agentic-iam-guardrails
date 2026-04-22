@@ -22,9 +22,10 @@ spec:
         local WX_GOV_PATH_MASK = "/mask"
 
         -- ==========================================================
-        -- Structured JSON logging helpers (match Python log schema):
-        -- {host_name, host_ip, module, function, line, process_id,
-        --  thread_name, request_id, event, message, ...}
+        -- Structured logfmt logging helpers (match Python log schema):
+        -- host_name=... host_ip=... module=... function=... line=...
+        -- process_id=... thread_name=... request_id=... event=...
+        -- message=... ...
         -- ==========================================================
         local LOG_MODULE = "envoy_lua_wx_gov_filter"
 
@@ -37,7 +38,7 @@ spec:
         local HOST_NAME = _safe_getenv("HOSTNAME") or "-"
         local HOST_IP = _safe_getenv("HOST_IP") or "-"
 
-        local function _json_escape(s)
+        local function _logfmt_escape(s)
           s = tostring(s)
           s = string.gsub(s, "\\", "\\\\")
           s = string.gsub(s, '"', '\\"')
@@ -47,20 +48,25 @@ spec:
           return s
         end
 
-        local function _json_value(v)
-          if v == nil then return "null" end
+        local function _logfmt_value(v)
+          if v == nil then return "" end
           local t = type(v)
           if t == "number" or t == "boolean" then return tostring(v) end
-          return '"' .. _json_escape(v) .. '"'
+          local s = tostring(v)
+          if s == "" then return "" end
+          if string.find(s, "[%s=\"]") then
+            return '"' .. _logfmt_escape(s) .. '"'
+          end
+          return _logfmt_escape(s)
         end
 
-        local function _json_encode_ordered(pairs_list)
+        local function _logfmt_encode_ordered(pairs_list)
           local parts = {}
           for i = 1, #pairs_list do
             local kv = pairs_list[i]
-            parts[#parts + 1] = '"' .. _json_escape(kv[1]) .. '":' .. _json_value(kv[2])
+            parts[#parts + 1] = tostring(kv[1]) .. "=" .. _logfmt_value(kv[2])
           end
-          return "{" .. table.concat(parts, ",") .. "}"
+          return table.concat(parts, " ")
         end
 
         local function _resolve_request_id(handle)
@@ -88,7 +94,7 @@ spec:
           if extra then
             for i = 1, #extra do fields[#fields + 1] = extra[i] end
           end
-          local payload = _json_encode_ordered(fields)
+          local payload = _logfmt_encode_ordered(fields)
           if level == "warn" then handle:logWarn(payload)
           elseif level == "err" or level == "error" then handle:logErr(payload)
           elseif level == "debug" then handle:logDebug(payload)

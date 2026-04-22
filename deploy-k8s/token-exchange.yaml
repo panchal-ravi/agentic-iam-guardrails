@@ -11,6 +11,7 @@ spec:
     metadata:
       annotations:
         consul.hashicorp.com/connect-inject: "true"
+        consul.hashicorp.com/enable-metrics-merging: 'false'
       labels:
         app: token-exchange
     spec:

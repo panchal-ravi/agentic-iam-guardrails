@@ -262,7 +262,7 @@ def bind_request_context(
     if session_state.get("_logged_request_id") != request_id:
         logger = get_logger("request")
         source = "header" if incoming_request_id else "generated"
-        logger.info("Bound request context using %s request ID", source)
+        logger.debug("Bound request context using %s request ID", source)
         session_state["_logged_request_id"] = request_id
 
     return request_id

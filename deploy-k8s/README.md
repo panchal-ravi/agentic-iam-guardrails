@@ -39,7 +39,7 @@ curl -s http://localhost:8080/v1/policies\?pretty\=true | jq -r '.result[] | [.i
 
 ## Deploy opa-gov-api (if testing OPA)
 ```
-kubectl apply -f deploy-k8s/opa-gov-api.yaml                                 
+kubectl apply -f deploy-k8s/opa-gov-api.yaml                           
 kubectl apply -f deploy-k8s/service-defaults-agent-opa-gov.yaml 
 ```
 
@@ -78,6 +78,7 @@ kubectl delete secret wx-gov-api-env
 kubectl delete -f deploy-k8s/service-defaults-agent-wx-gov.yaml 
 kubectl delete -f deploy-k8s/wx-gov-api.yaml
 
+kubectl delete -f deploy-k8s/service-intentions.yaml
 kubectl delete -f deploy-k8s/mesh.yaml
 kubectl delete -f deploy-k8s/proxy-defaults.yaml
 ```

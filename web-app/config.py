@@ -35,7 +35,7 @@ def log_loaded_configuration() -> None:
         return
 
     if not _DOTENV_VALUES:
-        _LOGGER.info("No .env file found at %s; using process environment only", _ENV_PATH)
+        _LOGGER.debug("No .env file found at %s; using process environment only", _ENV_PATH)
         _CONFIG_LOGGED = True
         return
 
@@ -43,7 +43,7 @@ def log_loaded_configuration() -> None:
         key: _mask_config_value(key, os.getenv(key, value))
         for key, value in sorted(_DOTENV_VALUES.items())
     }
-    _LOGGER.info("Loaded .env configuration: %s", json.dumps(redacted_config, sort_keys=True))
+    _LOGGER.debug("Loaded .env configuration: %s", json.dumps(redacted_config, sort_keys=True))
     _CONFIG_LOGGED = True
 
 

@@ -32,7 +32,7 @@ inject_theme()
 
 # ── Already authenticated → go straight to landing ───────────────────────────
 if "access_token" in st.session_state:
-    LOGGER.info("Authenticated session detected; redirecting to landing page")
+    LOGGER.debug("Authenticated session detected; redirecting to landing page")
     st.switch_page("pages/landing.py")
     st.stop()
 
@@ -55,7 +55,7 @@ if code:
     # Exchange authorization code for tokens
     with st.spinner("Completing sign-in…"):
         try:
-            LOGGER.info("Processing OAuth callback")
+            LOGGER.debug("Processing OAuth callback")
             token_response = exchange_code_for_tokens(code)
         except Exception as exc:
             LOGGER.exception("Token exchange failed")
@@ -85,5 +85,5 @@ if code:
     st.stop()
 
 # ── Default: show login page ──────────────────────────────────────────────────
-LOGGER.info("Rendering login page")
+LOGGER.debug("Rendering login page")
 render_login_page()

@@ -71,7 +71,7 @@ def require_auth() -> None:
     Call this as the very first statement in every authenticated page.
     """
     if "access_token" not in st.session_state:
-        LOGGER.info("Unauthenticated user redirected to login page")
+        LOGGER.debug("Unauthenticated user redirected to login page")
         st.switch_page("app.py")
         st.stop()
 

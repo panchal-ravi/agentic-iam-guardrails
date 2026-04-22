@@ -17,6 +17,10 @@ config:
           selector: '{app="loki"}'
           action: drop
           drop_counter_reason: loki_self_logs
+      - match:
+          selector: '{app="grafana"}'
+          action: drop
+          drop_counter_reason: grafana_self_logs
       - json:
           expressions:
             request_id: request_id

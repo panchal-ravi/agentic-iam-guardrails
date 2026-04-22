@@ -23,7 +23,7 @@ from components.navbar import render_navbar
 require_auth()
 inject_theme()
 
-LOGGER.info("Rendering landing page")
+LOGGER.debug("Rendering landing page")
 render_navbar()
 
 render_chat_workspace()

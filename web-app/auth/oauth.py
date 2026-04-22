@@ -59,7 +59,7 @@ def exchange_code_for_tokens(code: str) -> dict:
     Returns dict with keys: access_token, id_token, token_type, expires_in, scope.
     Raises requests.HTTPError on failure.
     """
-    LOGGER.info("Exchanging authorization code for tokens")
+    LOGGER.debug("Exchanging authorization code for tokens")
     response = requests.post(
         TOKEN_URL,
         data={
@@ -73,13 +73,13 @@ def exchange_code_for_tokens(code: str) -> dict:
         timeout=15,
     )
     response.raise_for_status()
-    LOGGER.info("Token exchange completed with status %s", response.status_code)
+    LOGGER.debug("Token exchange completed with status %s", response.status_code)
     return response.json()
 
 
 def get_jwks() -> dict:
     """Fetch IBM Verify JWKS (JSON Web Key Set)."""
-    LOGGER.info("Fetching JWKS from IBM Verify")
+    LOGGER.debug("Fetching JWKS from IBM Verify")
     response = requests.get(JWKS_URL, headers=build_outbound_headers(), timeout=10)
     response.raise_for_status()
     return response.json()
@@ -99,7 +99,7 @@ def validate_id_token(id_token: str) -> dict:
     if matching_key is None:
         raise jwt.PyJWTError("Unable to find a matching JWKS signing key.")
 
-    LOGGER.info("Validating id_token signature using JWKS key %s", key_id)
+    LOGGER.debug("Validating id_token signature using JWKS key %s", key_id)
     signing_key = RSAAlgorithm.from_jwk(json.dumps(matching_key))
     claims = jwt.decode(
         id_token,

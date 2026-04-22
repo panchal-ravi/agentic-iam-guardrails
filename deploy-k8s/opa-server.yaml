@@ -17,6 +17,7 @@ spec:
     metadata:
       annotations:
         consul.hashicorp.com/connect-inject: 'true'  # Enable Consul Connect sidecar injection
+        consul.hashicorp.com/enable-metrics-merging: 'false'
         vault.hashicorp.com/agent-init-first: "true"
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "opa-server"

@@ -19,7 +19,7 @@ log_loaded_configuration()
 from auth.session import require_auth
 
 require_auth()
-LOGGER.info("Opening compatibility chat route and redirecting to landing page")
+LOGGER.debug("Opening compatibility chat route and redirecting to landing page")
 st.session_state["chat_open"] = True
 st.switch_page("pages/landing.py")
 st.stop()
