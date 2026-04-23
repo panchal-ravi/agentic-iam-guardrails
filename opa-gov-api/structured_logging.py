@@ -155,12 +155,23 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=True, default=str)
 
 
+class _ExcludeMetricsAccessLogs(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name != "uvicorn.access":
+            return True
+        if not isinstance(record.args, tuple) or len(record.args) != 5:
+            return True
+        full_path = str(record.args[2])
+        return not full_path.startswith("/metrics")
+
+
 def configure_logging() -> None:
     level_name = os.getenv("LOG_LEVEL", "INFO").upper()
     log_level = logging._nameToLevel.get(level_name, logging.INFO)
 
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
+    handler.addFilter(_ExcludeMetricsAccessLogs())
 
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
@@ -171,6 +182,10 @@ def configure_logging() -> None:
         app_logger = logging.getLogger(logger_name)
         app_logger.handlers.clear()
         app_logger.propagate = True
+
+    for logger_name in ("httpx", "httpcore"):
+        noisy_logger = logging.getLogger(logger_name)
+        noisy_logger.setLevel(logging.WARNING)
 
 
 def get_logger(name: str) -> logging.Logger:

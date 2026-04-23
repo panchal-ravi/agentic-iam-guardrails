@@ -2,12 +2,12 @@
 
 ## Context
 
-`opa-gov-api` emits structured JSON logs for every OPA decision, but operators cannot chart or alert on decision rates without parsing logs. This change adds three OpenTelemetry counters that cover the governance signals that matter most to the platform — prompt-injection blocks, unsafe-code blocks, and successful PII masking — and exposes them on a Prometheus-scrapable `/metrics` endpoint.
+`opa-gov-api` emits structured JSON logs for every OPA decision, but operators cannot chart or alert on decision rates without parsing logs. This change adds two OpenTelemetry counters that cover the governance signals that matter most to the platform — OPA security blocks on `/evaluate` and successful PII masking on `/mask` — and exposes them on a Prometheus-scrapable `/metrics` endpoint.
 
 ## Scope
 
 - **In scope**
-  - Three OTel `Counter` instruments covering decision outcomes (below).
+  - Two OTel `Counter` instruments covering decision outcomes (below).
   - `GET /metrics` endpoint returning the Prometheus exposition format.
   - Dependency additions: `opentelemetry-api`, `opentelemetry-sdk`, `opentelemetry-exporter-prometheus`, `prometheus-client`.
 - **Out of scope**
@@ -18,17 +18,16 @@
 
 ## Instruments
 
-All three are monotonic `Counter` instruments. OTel appends the `_total` suffix when exported in Prometheus format, so the wire names below are what Prometheus scrapers see.
+Both are monotonic `Counter` instruments. OTel appends the `_total` suffix when exported in Prometheus format, so the wire names below are what Prometheus scrapers see.
 
 | OTel name | Prometheus name | When it increments |
 |---|---|---|
-| `opa_prompt_injection` | `opa_prompt_injection_total` | `/evaluate` returns 400 **and** `is_injection=true` in OPA's response. |
-| `opa_unsafe_code` | `opa_unsafe_code_total` | `/evaluate` returns 400 **and** `is_unsafe=true` in OPA's response. |
+| `opa_violations` | `opa_violations_total` | `/evaluate` returns 400 (either `is_injection=true` or `is_unsafe=true`, or both). |
 | `opa_pii_masking_successful` | `opa_pii_masking_successful_total` | `/mask` returns 200 **and** the masked output differs from the input (PII was actually detected/changed). |
 
 ### Increment rules
 
-- `/evaluate` — if both `is_injection` and `is_unsafe` are true on the same request, **both** counters increment. The two signals are tracked independently.
+- `/evaluate` — increments once per blocked request. A single call that trips both `is_injection` and `is_unsafe` still increments the counter by 1.
 - `/mask` — "successful" means PII was actually masked. Detection rule:
   - When `result.is_string` is true (OPA returned a plain string): increment iff `result.value != input_text`.
   - When `result.is_string` is false (OPA returned a structured envelope such as `{"masked": "...", "findings": [...]}`): always increment. By construction the JSON object cannot equal the plain-text input, and the structured shape is OPA's signal that masking ran.
@@ -61,7 +60,7 @@ opa_gov_api.py
 telemetry.py
     ├── builds MeterProvider with Resource(service.name, service.version)
     ├── installs PrometheusMetricReader (hooks into prometheus_client's global registry)
-    ├── creates three Counter instruments at import time
+    ├── creates two Counter instruments at import time
     └── render_metrics() -> (generate_latest(), CONTENT_TYPE_LATEST)
 ```
 
@@ -75,9 +74,9 @@ Counters are module-level attributes imported into `opa_gov_api.py` as names. De
 
 ## Label policy
 
-All three counters are unlabeled. Rationale:
+Both counters are unlabeled. Rationale:
 
-- The three questions operators are asking map 1:1 to three counters. No cross-cutting dimensions are needed to answer them.
+- The governance questions operators ask map 1:1 to these counters. No cross-cutting dimensions are needed to answer them.
 - Unlabeled counters keep cardinality flat — important because Prometheus TSDB cost scales with label-value combinations.
 - Adding labels later is backwards-compatible (old dashboards still work against the base series); removing labels is not. Start narrow.
 
@@ -100,11 +99,11 @@ If per-tenant, per-client, or per-path breakdowns are needed later, they should 
    OPA_BASE_URL=http://localhost:8181 uv run uvicorn opa_gov_api:app --host 0.0.0.0 --port 8000
    ```
 
-3. **Confirm `/metrics` exposes the three counters at 0**
+3. **Confirm `/metrics` exposes the two counters at 0**
    ```bash
-   curl -s http://localhost:8000/metrics | grep -E '^opa_(prompt_injection|unsafe_code|pii_masking_successful)_total'
+   curl -s http://localhost:8000/metrics | grep -E '^opa_(violations|pii_masking_successful)_total'
    ```
-   Expect three lines, each with value `0.0`.
+   Expect two lines, each with value `0.0`.
 
 4. **Drive each counter**
    ```bash
@@ -122,8 +121,7 @@ If per-tenant, per-client, or per-path breakdowns are needed later, they should 
      http://localhost:8000/mask
    ```
    Re-scrape `/metrics` and confirm:
-   - `opa_prompt_injection_total` incremented by 1
-   - `opa_unsafe_code_total` incremented by 1
+   - `opa_violations_total` incremented by 2 (one for the injection block, one for the unsafe-code block)
    - `opa_pii_masking_successful_total` incremented by 1 (the benign "Hello world" must **not** bump it)
 
 5. **Fail-open does not inflate the PII counter**

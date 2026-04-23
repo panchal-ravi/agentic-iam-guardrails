@@ -20,8 +20,9 @@ from logging_utils import (
 )
 from models import AgentTokensResponse, ChatRequest
 from security import (
+    extract_agent_identity_claims,
     extract_bearer_token,
-    extract_obo_identity_claims,
+    extract_user_identity_claims,
     validate_access_token,
 )
 from tools import TOOLS
@@ -142,14 +143,26 @@ def create_app(
     @app.post("/v1/agent/query")
     async def query_agent(request: Request, chat_request: ChatRequest):
         obo_token: str | None = None
+        preferred_username: str | None = None
+        actor_agent_id: str | None = None
         if not request.app.state.settings.bypass_auth_token_exchange:
             access_token = extract_bearer_token(request)
-            validate_access_token(access_token)
+            access_token_payload = validate_access_token(access_token)
             obo_token = request.app.state.token_service.resolve_token(
                 access_token,
                 request.state.request_id,
             )
-        identity_claims = extract_obo_identity_claims(obo_token)
+            actor_token = request.app.state.token_service.read_actor_token()
+            preferred_username = extract_user_identity_claims(
+                access_token_payload
+            )["preferred_username"]
+            actor_agent_id = extract_agent_identity_claims(
+                actor_token
+            )["actor_agent_id"]
+        bind_log_context(
+            preferred_username=preferred_username,
+            actor_agent_id=actor_agent_id,
+        )
         return request.app.state.agent_runtime.handle_request(
             chat_request=chat_request,
             obo_token=obo_token,
@@ -157,8 +170,6 @@ def create_app(
             request_path=request.url.path,
             request_method=request.method,
             client_ip=request.state.client_ip,
-            preferred_username=identity_claims["preferred_username"],
-            actor_agent_id=identity_claims["actor_agent_id"],
         )
 
     @app.get("/v1/agent/tokens", response_model=AgentTokensResponse)

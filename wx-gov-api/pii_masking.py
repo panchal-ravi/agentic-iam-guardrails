@@ -235,7 +235,7 @@ def mask_pii_text(text: str, direction: str = "input") -> str:
     config = load_config()
     log_event(
         logger,
-        logging.INFO,
+        logging.DEBUG,
         "guardrails.masking.started",
         "Starting PII masking enforcement",
         direction=direction,
@@ -243,14 +243,15 @@ def mask_pii_text(text: str, direction: str = "input") -> str:
     )
     response = enforce_policy(config, text=text, direction=direction)
     masked_text = extract_masked_text(response, original_text=text)
-    log_event(
-        logger,
-        logging.INFO,
-        "guardrails.masking.completed",
-        "Completed PII masking enforcement",
-        direction=direction,
-        policy_id=config.policy_id,
-    )
+    if masked_text != text:
+        log_event(
+            logger,
+            logging.INFO,
+            "guardrails.masking.completed",
+            "Completed watsonx.governance PII masking enforcement",
+            direction=direction,
+            policy_id=config.policy_id,
+        )
     return masked_text
 
 

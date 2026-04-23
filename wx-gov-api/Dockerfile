@@ -12,14 +12,14 @@ ARG TARGETARCH
 
 WORKDIR /app
 
-COPY requirements.txt pyproject.toml README.md ./
-
 RUN if [ "$TARGETARCH" != "amd64" ]; then \
         echo "Unsupported Docker target: ${TARGETPLATFORM}. ibm-watsonx-gov currently publishes Linux wheels only for x86_64, so this image can only be built for linux/amd64." >&2; \
         exit 1; \
     fi
 
-RUN python -m pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml README.md ./
+
+RUN python -m pip install --no-cache-dir .
 
 COPY ./*.py ./
 

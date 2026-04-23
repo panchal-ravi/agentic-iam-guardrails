@@ -1,9 +1,16 @@
 import base64
+import json
+import logging
 import os
 from dataclasses import dataclass, field
+from time import perf_counter
 from typing import Any
 
 import httpx
+
+from structured_logging import get_logger, log_event
+
+logger = get_logger(__name__)
 
 
 def _parse_bool_env(name: str, default: bool) -> bool:
@@ -73,6 +80,13 @@ def _encode_input(text: str) -> str:
     return base64.b64encode(text.encode("utf-8")).decode("ascii")
 
 
+def _truncate_json_for_log(value: Any, max_chars: int = 500) -> str:
+    serialized = json.dumps(value, ensure_ascii=True, default=str)
+    if len(serialized) <= max_chars:
+        return serialized
+    return f"{serialized[:max_chars]}...(truncated)"
+
+
 class OpaClient:
     def __init__(
         self, config: OpaClientConfig, httpx_client: httpx.AsyncClient
@@ -86,6 +100,7 @@ class OpaClient:
     async def _post(self, path: str, text: str) -> dict[str, Any]:
         url = f"{self.config.base_url}{path}"
         payload = {"input": _encode_input(text)}
+        started_at = perf_counter()
         try:
             response = await self._client.post(url, json=payload)
         except httpx.HTTPError as exc:
@@ -95,6 +110,39 @@ class OpaClient:
                 error_class=exc.__class__.__name__,
                 error=str(exc),
             ) from exc
+
+        parsed_body: dict[str, Any] | None = None
+        json_result_for_log: str | None = None
+        try:
+            candidate_body = response.json()
+            if not isinstance(candidate_body, dict):
+                raise OpaMalformedResponseError(
+                    "OPA returned JSON body that is not an object",
+                    path=path,
+                    status=response.status_code,
+                    body=response.text[:500],
+                )
+            parsed_body = candidate_body
+            log_result_payload = (
+                parsed_body["result"] if "result" in parsed_body else parsed_body
+            )
+            json_result_for_log = _truncate_json_for_log(log_result_payload)
+        except ValueError:
+            parsed_body = None
+
+        duration_ms = round((perf_counter() - started_at) * 1000, 3)
+        log_event(
+            logger,
+            logging.DEBUG,
+            "opa.upstream.response",
+            "Received response from OPA server",
+            path=path,
+            status_code=response.status_code,
+            duration_ms=duration_ms,
+            response_bytes=len(response.content),
+            response_body=response.text[:500],
+            response_json_result=json_result_for_log,
+        )
 
         if response.status_code >= 500 or response.status_code == 408:
             raise OpaUpstreamError(
@@ -111,15 +159,14 @@ class OpaClient:
                 body=response.text[:500],
             )
 
-        try:
-            return response.json()
-        except ValueError as exc:
+        if parsed_body is None:
             raise OpaMalformedResponseError(
                 "OPA returned non-JSON body",
                 path=path,
                 status=response.status_code,
                 body=response.text[:500],
-            ) from exc
+            )
+        return parsed_body
 
     async def check_security(self, text: str) -> dict[str, bool]:
         body = await self._post(self.config.security_path, text)

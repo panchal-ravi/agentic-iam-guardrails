@@ -22,6 +22,7 @@ _HOSTNAME = socket.gethostname()
 _request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 _client_ip_var: ContextVar[str] = ContextVar("client_ip", default="-")
 _request_path_var: ContextVar[str] = ContextVar("request_path", default="-")
+_preferred_username_var: ContextVar[str] = ContextVar("preferred_username", default="")
 
 _STANDARD_LOG_RECORD_FIELDS = frozenset(
     {
@@ -42,6 +43,7 @@ _STANDARD_LOG_RECORD_FIELDS = frozenset(
         "msg",
         "name",
         "pathname",
+        "preferred_username",
         "process",
         "processName",
         "relativeCreated",
@@ -89,6 +91,7 @@ class _RequestContextFilter(logging.Filter):
         record.request_id = _request_id_var.get() or "-"
         record.client_ip = _client_ip_var.get() or "-"
         record.request_path = _request_path_var.get() or "-"
+        record.preferred_username = _preferred_username_var.get() or "-"
         return True
 
 
@@ -137,7 +140,17 @@ class _JsonFormatter(logging.Formatter):
                 for key, value in extra.items()
             }
 
+        _apply_identity_message_prefix(payload, _preferred_username_var.get() or "")
+
         return json.dumps(payload, ensure_ascii=True)
+
+
+def _apply_identity_message_prefix(payload: dict[str, Any], preferred_username: str) -> None:
+    """Prepend ``[user=<name>]`` to the message field when an identity is bound."""
+    message = payload.get("message")
+    if not isinstance(message, str) or not preferred_username:
+        return
+    payload["message"] = f"[user={preferred_username}] {message}"
 
 
 def _prepare_handler(handler: logging.Handler, level: int) -> None:
@@ -242,7 +255,10 @@ def resolve_request_id(headers: Mapping[str, Any] | None = None) -> str:
 
 
 def bind_request_context(
-    session_state: MutableMapping[str, Any], headers: Mapping[str, Any] | None, url: str = ""
+    session_state: MutableMapping[str, Any],
+    headers: Mapping[str, Any] | None,
+    url: str = "",
+    preferred_username: str = "",
 ) -> str:
     """Persist and bind the current request ID for this Streamlit session."""
     normalized_headers = _normalize_headers(headers)
@@ -257,7 +273,9 @@ def bind_request_context(
     _request_id_var.set(request_id)
     _client_ip_var.set(client_ip)
     _request_path_var.set(request_path)
+    _preferred_username_var.set(preferred_username)
     session_state["request_id"] = request_id
+    session_state["preferred_username"] = preferred_username
 
     if session_state.get("_logged_request_id") != request_id:
         logger = get_logger("request")
@@ -272,6 +290,7 @@ def rotate_request_id(session_state: MutableMapping[str, Any]) -> str:
     """Generate a fresh request ID and bind it for the current session."""
     new_request_id = str(uuid.uuid4())
     _request_id_var.set(new_request_id)
+    _preferred_username_var.set(str(session_state.get("preferred_username") or ""))
     session_state["request_id"] = new_request_id
     session_state.pop("_logged_request_id", None)
     return new_request_id

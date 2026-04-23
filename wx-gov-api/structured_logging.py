@@ -155,22 +155,63 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=True, default=str)
 
 
+class _ExcludeMetricsAccessLogs(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name != "uvicorn.access":
+            return True
+        if not isinstance(record.args, tuple) or len(record.args) != 5:
+            return True
+        full_path = str(record.args[2])
+        return not full_path.startswith("/metrics")
+
+
+class _DowngradeAccessLogLevel(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name != "uvicorn.access":
+            return True
+        record.levelno = logging.DEBUG
+        record.levelname = "DEBUG"
+        return record.levelno >= logging.getLogger().getEffectiveLevel()
+
+
+class _DowngradeRootInfoLogs(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name != "root" or record.levelno != logging.INFO:
+            return True
+        record.levelno = logging.DEBUG
+        record.levelname = "DEBUG"
+        return record.levelno >= logging.getLogger().getEffectiveLevel()
+
+
 def configure_logging() -> None:
     level_name = os.getenv("LOG_LEVEL", "INFO").upper()
     log_level = logging._nameToLevel.get(level_name, logging.INFO)
 
     handler = logging.StreamHandler()
     handler.setFormatter(JsonFormatter())
+    handler.addFilter(_ExcludeMetricsAccessLogs())
 
     root_logger = logging.getLogger()
     root_logger.handlers.clear()
     root_logger.setLevel(log_level)
     root_logger.addHandler(handler)
+    for existing_filter in list(root_logger.filters):
+        if isinstance(existing_filter, _DowngradeRootInfoLogs):
+            root_logger.removeFilter(existing_filter)
+    root_logger.addFilter(_DowngradeRootInfoLogs())
 
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"):
         app_logger = logging.getLogger(logger_name)
         app_logger.handlers.clear()
         app_logger.propagate = True
+        if logger_name in ("uvicorn.error", "uvicorn.access"):
+            app_logger.setLevel(logging.DEBUG)
+
+    access_logger = logging.getLogger("uvicorn.access")
+    for existing_filter in list(access_logger.filters):
+        if isinstance(existing_filter, _DowngradeAccessLogLevel):
+            access_logger.removeFilter(existing_filter)
+    access_logger.addFilter(_DowngradeAccessLogLevel())
 
 
 def get_logger(name: str) -> logging.Logger:

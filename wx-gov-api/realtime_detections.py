@@ -96,7 +96,7 @@ def evaluate_text_metrics(text: str) -> dict[str, float]:
     configure_environment()
     log_event(
         logger,
-        logging.INFO,
+        logging.DEBUG,
         "guardrails.metrics.started",
         "Starting realtime metrics evaluation",
     )
@@ -136,8 +136,8 @@ def evaluate_text_metrics(text: str) -> dict[str, float]:
         logger,
         logging.INFO,
         "guardrails.metrics.completed",
-        "Completed realtime metrics evaluation",
-        metric_scores=metric_scores,
+        f"Policy evaluated for user input: {text}, response: {json.dumps(metric_scores, ensure_ascii=False)}",
+        response=metric_scores,
     )
     return metric_scores
 

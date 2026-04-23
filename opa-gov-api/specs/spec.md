@@ -78,8 +78,9 @@ The default matches the pre-existing Lua filter, which logs and continues on OPA
 | `opa.client.closed`           | INFO    | Lifespan shutdown                                      |
 | `opa.security.checked`        | INFO    | `/evaluate` allowed (200)                              |
 | `opa.security.blocked`        | INFO    | `/evaluate` blocked (400)                              |
-| `opa.mask.completed`          | INFO    | `/mask` success                                        |
-| `opa.upstream.failed`         | WARNING | OPA timeout, 5xx, malformed body                       |
+| `opa.mask.completed`          | INFO / DEBUG | `/mask`: INFO only when masked output contains `*`; otherwise DEBUG |
+| `opa.upstream.response`       | DEBUG   | OPA upstream response metadata + parsed JSON result preview |
+| `opa.upstream.failed`         | WARNING / DEBUG | OPA timeout, 5xx, malformed body (`/evaluate` WARNING, `/mask` DEBUG) |
 | `opa.request.invalid_payload` | WARNING | Body rejected (400)                                    |
 | `opa.request.body_too_large`  | WARNING | Body over `MAX_BODY_BYTES` (413)                       |
 | `opa.readiness.probed`        | INFO / WARNING | `/readyz` success / failure                      |
@@ -90,8 +91,7 @@ Every event includes `request_id`; `opa.upstream.failed` includes the underlying
 
 - Prometheus exposition format over HTTP. Scraped on the same port as the API.
 - Counters (see `specs/metrics.md` for the full contract):
-  - `opa_prompt_injection_total` — `/evaluate` blocks where `is_injection=true`.
-  - `opa_unsafe_code_total` — `/evaluate` blocks where `is_unsafe=true`.
+  - `opa_violations_total` — `/evaluate` blocks (either `is_injection` or `is_unsafe` tripped). Increments once per blocked request.
   - `opa_pii_masking_successful_total` — `/mask` successes where output differs from input (real PII masking, not fail-open echo).
 - No labels. No authentication — gate with Consul intentions or NetworkPolicy if needed.
 

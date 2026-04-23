@@ -62,21 +62,26 @@ def decode_jwt_payload(token: str, token_label: str) -> dict[str, Any]:
     return payload
 
 
-def extract_obo_identity_claims(obo_token: str | None) -> dict[str, str | None]:
-    if not obo_token:
-        return {"preferred_username": None, "actor_agent_id": None}
+def extract_user_identity_claims(access_token_payload: dict[str, Any]) -> dict[str, str | None]:
+    preferred_username = access_token_payload.get("preferred_username")
+    return {
+        "preferred_username": preferred_username if isinstance(preferred_username, str) else None,
+    }
+
+
+def extract_agent_identity_claims(actor_token: str | None) -> dict[str, str | None]:
+    if not actor_token:
+        return {"actor_agent_id": None}
 
     try:
-        payload = decode_jwt_payload(obo_token, "OBO token")
+        payload = decode_jwt_payload(actor_token, "actor token")
     except AppError:
-        return {"preferred_username": None, "actor_agent_id": None}
+        return {"actor_agent_id": None}
 
-    preferred_username = payload.get("preferred_username")
     actor = payload.get("actor")
     actor_agent_id = actor.get("agent_id") if isinstance(actor, dict) else None
 
     return {
-        "preferred_username": preferred_username if isinstance(preferred_username, str) else None,
         "actor_agent_id": actor_agent_id if isinstance(actor_agent_id, str) else None,
     }
 

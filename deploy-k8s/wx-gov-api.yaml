@@ -20,6 +20,9 @@ spec:
     metadata:
       annotations:
         consul.hashicorp.com/connect-inject: 'true'
+        consul.hashicorp.com/enable-metrics-merging: 'true'
+        consul.hashicorp.com/service-metrics-port: "8000"
+        consul.hashicorp.com/service-metrics-path: "/metrics"  
       labels:
         app: wx-gov-api
     spec:

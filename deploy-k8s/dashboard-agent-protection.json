@@ -1,0 +1,219 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": { "type": "datasource", "uid": "grafana" },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "type": "row",
+      "id": 100,
+      "title": "Agent Runtime Protection — Policy Violations",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "panels": []
+    },
+
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "wx-gov • Violations",
+      "description": "Counter increments once per /evaluate call where any of {prompt_safety_risk, jailbreak, harm, hap, unethical_behavior} > 0.5. Click to show matching logs.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 1 },
+      "targets": [
+        { "refId": "A", "expr": "sum(wxgov_violations_total)", "instant": true, "legendFormat": "Total" },
+        { "refId": "B", "expr": "sum(rate(wxgov_violations_total[5m]))", "instant": true, "legendFormat": "Rate /s" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] },
+          "unit": "short",
+          "links": [
+            {
+              "title": "Filter logs — wx-gov violations (any metric > 0.5)",
+              "url": "/d/${__dashboard.uid}?${__url_time_range}&var-loki_expr=%7Bservice_name%3D%22wx-gov-api%22%7D%20%7C%3D%20%22guardrails.metrics.completed%22%20%7C%20json%20%7C%20json%20harm%3D%22response.harm%22%2C%20hap%3D%22response.hap%22%2C%20unethical%3D%22response.unethical_behavior%22%2C%20prompt_safety_risk%3D%22response.prompt_safety_risk%22%2C%20jailbreak%3D%22response.jailbreak%22%20%7C%20harm%20%3E%200.5%20or%20hap%20%3E%200.5%20or%20unethical%20%3E%200.5%20or%20prompt_safety_risk%20%3E%200.5%20or%20jailbreak%20%3E%200.5%20%7C%20line_format%20%22%7B%7B.request_id%7D%7D%20%20%7B%7B.service_name%7D%7D%20%20%7B%7B.event%7D%7D%20%20%7B%7B.message%7D%7D%22",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "orientation": "horizontal", "colorMode": "value", "graphMode": "area", "textMode": "value_and_name"
+      }
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "wx-gov • PII Masked",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 1 },
+      "targets": [
+        { "refId": "A", "expr": "sum(wxgov_pii_masking_successful_total)", "instant": true, "legendFormat": "Total" },
+        { "refId": "B", "expr": "sum(rate(wxgov_pii_masking_successful_total[5m]))", "instant": true, "legendFormat": "Rate /s" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] },
+          "unit": "short",
+          "links": [
+            {
+              "title": "Filter logs — wx-gov PII masking completed",
+              "url": "/d/${__dashboard.uid}?${__url_time_range}&var-loki_expr=%7Bservice_name%3D%22wx-gov-api%22%7D%20%7C%3D%20%22guardrails.masking.completed%22%20%7C%20json%20%7C%20line_format%20%22%7B%7B.request_id%7D%7D%20%20%7B%7B.service_name%7D%7D%20%20%7B%7B.event%7D%7D%20%20%7B%7B.message%7D%7D%22",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "orientation": "horizontal", "colorMode": "value", "graphMode": "area", "textMode": "value_and_name"
+      }
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "OPA • Violations",
+      "description": "Counter increments once per /evaluate call blocked by OPA (is_injection=true and/or is_unsafe=true). Click to show matching logs.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 1 },
+      "targets": [
+        { "refId": "A", "expr": "sum(opa_violations_total)", "instant": true, "legendFormat": "Total" },
+        { "refId": "B", "expr": "sum(rate(opa_violations_total[5m]))", "instant": true, "legendFormat": "Rate /s" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 1 } ] },
+          "unit": "short",
+          "links": [
+            {
+              "title": "Filter logs — OPA blocked requests",
+              "url": "/d/${__dashboard.uid}?${__url_time_range}&var-loki_expr=%7Bservice_name%3D%22opa-gov-api%22%7D%20%7C%3D%20%22opa.security.blocked%22%20%7C%20json%20%7C%20line_format%20%22%7B%7B.request_id%7D%7D%20%20%7B%7B.service_name%7D%7D%20%20%7B%7B.event%7D%7D%20%20%7B%7B.message%7D%7D%22",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "orientation": "horizontal", "colorMode": "value", "graphMode": "area", "textMode": "value_and_name"
+      }
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "OPA • PII Masked",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 1 },
+      "targets": [
+        { "refId": "A", "expr": "sum(opa_pii_masking_successful_total)", "instant": true, "legendFormat": "Total" },
+        { "refId": "B", "expr": "sum(rate(opa_pii_masking_successful_total[5m]))", "instant": true, "legendFormat": "Rate /s" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null } ] },
+          "unit": "short",
+          "links": [
+            {
+              "title": "Filter logs — OPA pii_changed=true",
+              "url": "/d/${__dashboard.uid}?${__url_time_range}&var-loki_expr=%7Bservice_name%3D%22opa-gov-api%22%7D%20%7C%3D%20%22pii_changed%3Dtrue%22%20%7C%20json%20%7C%20line_format%20%22%7B%7B.request_id%7D%7D%20%20%7B%7B.service_name%7D%7D%20%20%7B%7B.event%7D%7D%20%20%7B%7B.message%7D%7D%22",
+              "targetBlank": false
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "orientation": "horizontal", "colorMode": "value", "graphMode": "area", "textMode": "value_and_name"
+      }
+    },
+
+    {
+      "type": "row",
+      "id": 101,
+      "title": "Matching Logs (click a stat above to set the filter)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 7 },
+      "panels": []
+    },
+
+    {
+      "id": 10,
+      "type": "logs",
+      "title": "Loki logs — $loki_expr",
+      "description": "Driven by the $loki_expr dashboard variable. Edit the variable at the top to reset or customize the filter.",
+      "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "loki", "uid": "P8E80F9AEF21F6940" },
+          "editorMode": "code",
+          "expr": "$loki_expr",
+          "queryType": "range",
+          "direction": "backward"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      }
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 42,
+  "tags": ["agent-runtime-protection", "opa", "watsonx-governance"],
+  "templating": {
+    "list": [
+      {
+        "name": "loki_expr",
+        "label": "Loki expression",
+        "type": "textbox",
+        "current": {
+          "text": "{service_name=~\"wx-gov-api|opa-gov-api\"} | json | line_format \"{{.request_id}}  {{.service_name}}  {{.event}}  {{.message}}\"",
+          "value": "{service_name=~\"wx-gov-api|opa-gov-api\"} | json | line_format \"{{.request_id}}  {{.service_name}}  {{.event}}  {{.message}}\""
+        },
+        "query": "{service_name=~\"wx-gov-api|opa-gov-api\"} | json | line_format \"{{.request_id}}  {{.service_name}}  {{.event}}  {{.message}}\"",
+        "description": "Full LogQL expression used by the logs panel. Click a stat panel to replace this with the matching filter."
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Agent Runtime Protection — OPA & watsonx.governance",
+  "uid": "agent-protection",
+  "version": 2,
+  "weekStart": ""
+}

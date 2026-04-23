@@ -26,6 +26,36 @@ def _add_standard_fields(
     return event_dict
 
 
+def _add_message_field(
+    _: logging.Logger, __: str, event_dict: structlog.typing.EventDict
+) -> structlog.typing.EventDict:
+    """Ensure every record has a ``message`` field (mirrors ``event`` when absent)."""
+    if "message" not in event_dict:
+        event = event_dict.get("event")
+        if event is not None:
+            event_dict["message"] = event
+    return event_dict
+
+
+def _prepend_identity_to_message(
+    _: logging.Logger, __: str, event_dict: structlog.typing.EventDict
+) -> structlog.typing.EventDict:
+    """Prepend ``user`` and ``agent`` identifiers to the ``message`` field."""
+    preferred_username = event_dict.get("preferred_username")
+    agent_id = event_dict.get("agent_id")
+    message = event_dict.get("message")
+    if not isinstance(message, str):
+        return event_dict
+    identity_parts: list[str] = []
+    if preferred_username:
+        identity_parts.append(f"user={preferred_username}")
+    if agent_id:
+        identity_parts.append(f"agent={agent_id}")
+    if identity_parts:
+        event_dict["message"] = f"[{' '.join(identity_parts)}] {message}"
+    return event_dict
+
+
 def _add_uvicorn_access_fields(
     _: logging.Logger, __: str, event_dict: structlog.typing.EventDict
 ) -> structlog.typing.EventDict:
@@ -62,6 +92,8 @@ def _shared_processors() -> list[Any]:
         ),
         structlog.processors.StackInfoRenderer(),
         _add_standard_fields,
+        _add_message_field,
+        _prepend_identity_to_message,
     ]
 
 

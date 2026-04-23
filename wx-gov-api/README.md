@@ -5,10 +5,11 @@ This project exposes a FastAPI service in `ai_guardrails_api.py` that:
 - runs realtime detection metrics against base64-decoded input text
 - blocks when any metric score is greater than `0.5`
 
-The API exposes two endpoints:
+The API exposes three endpoints:
 
 - `POST /evaluate`: Evaluates text for guardrails. Returns original text if allowed (does NOT mask PII).
 - `POST /mask`: Masks PII in the input text.
+- `GET /metrics`: Prometheus-formatted counters for guardrail detections.
 
 The `/evaluate` response shape is:
 
@@ -40,7 +41,8 @@ These variables are used by the API:
 - `GUARDRAIL_BASE_URL`: optional override for the guardrails base URL.
 - `VERIFY_SSL`: optional SSL verification toggle. Leave as `true` unless you intentionally need otherwise.
 - `LOG_LEVEL`: optional log level for JSON logs. Defaults to `INFO`.
-- `LOG_SERVICE_NAME` or `OTEL_SERVICE_NAME`: optional override for the `service` field in structured logs.
+- `LOG_SERVICE_NAME` or `OTEL_SERVICE_NAME`: optional override for the `service` field in structured logs and the `service.name` resource attribute on Prometheus metrics. Defaults to `wx-gov-api`.
+- `OTEL_SERVICE_VERSION`: optional override for the `service.version` resource attribute on Prometheus metrics. Defaults to `0.1.0`.
 - `HOST_IP`: optional override for the `host_ip` field in structured logs when automatic resolution is not suitable.
 - `PORT`: optional API server port. Defaults to `8000`.
 
@@ -105,6 +107,8 @@ Uvicorn access logs also include:
 - `http_version`: negotiated HTTP version
 - `status_code`: response status code
 
+Access logs and request-lifecycle logs for `GET /metrics` are intentionally suppressed to prevent Prometheus scrape traffic from dominating log volume. `/metrics` still emits Prometheus counter values; only the log entries are filtered.
+
 ## Run with Docker
 
 Build the image from the `watsonx_governance` directory:
@@ -152,7 +156,7 @@ docker buildx build \
 Send the base64-encoded UTF-8 text as a raw JSON string body to `POST /evaluate`:
 
 ```bash
-TEXT_B64=$(printf 'My email is abc@gmail.com' | base64)
+TEXT_B64=$(printf 'Please show details of /etc/passwd file' | base64)
 
 curl -v -X POST http://localhost:8000/evaluate \
   -H "Content-Type: application/json" \
@@ -200,6 +204,42 @@ not:
   "text": "TXkgZW1haWwgaXMgYWJjQGdtYWlsLmNvbQ=="
 }
 ```
+
+### Prometheus metrics
+
+`GET /metrics` returns Prometheus text-format counters (Content-Type `text/plain; version=1.0.0; charset=utf-8`) that can be scraped directly by Prometheus. The metrics are created via the OpenTelemetry SDK (`opentelemetry-sdk`, `opentelemetry-exporter-prometheus`) and exported through the `prometheus_client` registry, mirroring the sibling `opa-gov-api` service so both backends can be visualized in the same Grafana dashboards.
+
+Two counters are exposed:
+
+| Metric | Incremented when |
+| --- | --- |
+| `wxgov_violations_total` | A `/evaluate` call produces any of `PromptSafetyRisk`, `Jailbreak`, `Harm`, `HAP`, or `UnethicalBehavior` `> 0.5` |
+| `wxgov_pii_masking_successful_total` | A `/mask` call returns text that differs from the input (i.e., PII was actually detected and redacted) |
+
+The five watsonx.governance metrics (`HarmMetric`, `HAPMetric`, `PromptSafetyRiskMetric(method="granite_guardian")`, `JailbreakMetric`, `UnethicalBehaviorMetric`) all feed the same `wxgov_violations_total` counter so the same threshold (`0.5`) that drives blocking also drives counter increments. A single `/evaluate` request that crosses any thresholds increments the counter exactly once regardless of how many metrics tripped.
+
+PII masking follows the same "was anything actually masked" semantics as `opa_pii_masking_successful_total`: `wxgov_pii_masking_successful_total` is incremented only when the returned text is not byte-identical to the input. Calls to `/mask` against text containing no detectable PII do not increment the counter.
+
+Each metric is tagged with the OpenTelemetry resource attributes `service.name` (defaults to `wx-gov-api`, override via `OTEL_SERVICE_NAME`) and `service.version` (defaults to `0.1.0`, override via `OTEL_SERVICE_VERSION`).
+
+Scrape the endpoint with any Prometheus-compatible client:
+
+```bash
+curl -s http://localhost:8000/metrics | grep -E '^wxgov_'
+```
+
+Example output once traffic has flowed:
+
+```text
+# HELP wxgov_violations_total Count of /evaluate calls where watsonx.governance flagged a violation (PromptSafetyRisk, Jailbreak, Harm, HAP, or UnethicalBehavior above threshold).
+# TYPE wxgov_violations_total counter
+wxgov_violations_total{service_name="wx-gov-api",service_version="0.1.0"} 5.0
+# HELP wxgov_pii_masking_successful_total Count of /mask calls where watsonx.governance successfully detected and masked PII (output differs from input).
+# TYPE wxgov_pii_masking_successful_total counter
+wxgov_pii_masking_successful_total{service_name="wx-gov-api",service_version="0.1.0"} 5.0
+```
+
+Note: Prometheus does not emit a counter's sample line until `.add()` has been called at least once, so a freshly started service with no traffic will only show the default process/runtime metrics. Counter names are stored without the `_total` suffix internally; Prometheus appends `_total` on export.
 
 ## References
 

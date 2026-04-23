@@ -27,8 +27,7 @@ from structured_logging import (
 )
 from telemetry import (
     PII_MASKING_SUCCESSFUL_COUNTER,
-    PROMPT_INJECTION_COUNTER,
-    UNSAFE_CODE_COUNTER,
+    VIOLATIONS_COUNTER,
     render_metrics,
 )
 
@@ -64,7 +63,7 @@ async def lifespan(app: FastAPI):
         await client.aclose()
         log_event(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "opa.client.closed",
             "OPA client closed",
         )
@@ -93,6 +92,16 @@ def read_text_body(body: bytes, max_bytes: int) -> str:
         raise ValueError("Request body must be valid UTF-8") from exc
 
 
+def _contains_asterisk_sequence(value: object) -> bool:
+    if isinstance(value, str):
+        return "*" in value
+    if isinstance(value, dict):
+        return any(_contains_asterisk_sequence(item) for item in value.values())
+    if isinstance(value, (list, tuple, set)):
+        return any(_contains_asterisk_sequence(item) for item in value)
+    return False
+
+
 class _BodyTooLargeError(Exception):
     def __init__(self, size: int, limit: int) -> None:
         super().__init__(f"Request body {size} bytes exceeds limit {limit}")
@@ -114,38 +123,42 @@ async def request_context_middleware(request: Request, call_next):
         client_ip=client_ip,
     )
     started_at = perf_counter()
-    log_event(
-        logger,
-        logging.INFO,
-        "http.request.received",
-        "HTTP request received",
-        request_id=request_id,
-    )
+    should_log_lifecycle = request.url.path != "/metrics"
+    if should_log_lifecycle:
+        log_event(
+            logger,
+            logging.DEBUG,
+            "http.request.received",
+            "HTTP request received",
+            request_id=request_id,
+        )
 
     try:
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
         duration_ms = round((perf_counter() - started_at) * 1000, 3)
-        log_event(
-            logger,
-            logging.INFO,
-            "http.request.completed",
-            "HTTP request completed",
-            request_id=request_id,
-            status_code=response.status_code,
-            duration_ms=duration_ms,
-        )
+        if should_log_lifecycle:
+            log_event(
+                logger,
+                logging.DEBUG,
+                "http.request.completed",
+                "HTTP request completed",
+                request_id=request_id,
+                status_code=response.status_code,
+                duration_ms=duration_ms,
+            )
         return response
     except Exception:
         duration_ms = round((perf_counter() - started_at) * 1000, 3)
-        logger.exception(
-            "HTTP request failed",
-            extra={
-                "event": "http.request.failed",
-                "request_id": request_id,
-                "duration_ms": duration_ms,
-            },
-        )
+        if should_log_lifecycle:
+            logger.exception(
+                "HTTP request failed",
+                extra={
+                    "event": "http.request.failed",
+                    "request_id": request_id,
+                    "duration_ms": duration_ms,
+                },
+            )
         raise
     finally:
         reset_request_fields(request_fields_token)
@@ -171,7 +184,7 @@ async def readyz(http_request: Request):
     if reachable:
         log_event(
             logger,
-            logging.INFO,
+            logging.DEBUG,
             "opa.readiness.probed",
             "OPA reachable",
             request_id=request_id,
@@ -255,15 +268,12 @@ async def evaluate(http_request: Request):
             is_unsafe=flags["is_unsafe"],
             status_code=400,
         )
-        if flags["is_injection"]:
-            PROMPT_INJECTION_COUNTER.add(1)
-        if flags["is_unsafe"]:
-            UNSAFE_CODE_COUNTER.add(1)
+        VIOLATIONS_COUNTER.add(1)
         return PlainTextResponse(BLOCKED_CONTENT_MESSAGE, status_code=400)
 
     log_event(
         logger,
-        logging.INFO,
+        logging.DEBUG,
         "opa.security.checked",
         "Request allowed by OPA security check",
         request_id=request_id,
@@ -289,7 +299,7 @@ async def mask(http_request: Request):
     except OpaUpstreamError as exc:
         log_event(
             logger,
-            logging.WARNING,
+            logging.DEBUG,
             "opa.upstream.failed",
             "OPA upstream call failed on /mask",
             request_id=request_id,
@@ -308,18 +318,20 @@ async def mask(http_request: Request):
     pii_changed = (
         result.value != text if result.is_string else True
     )
+    mask_detected = _contains_asterisk_sequence(result.value)
     log_event(
         logger,
-        logging.INFO,
+        logging.INFO if mask_detected else logging.DEBUG,
         "opa.mask.completed",
-        "PII masking completed",
+        "PII masking completed" if mask_detected else "PII masking not detected",
         request_id=request_id,
         is_string=result.is_string,
         output_bytes=output_bytes,
         pii_changed=pii_changed,
+        mask_detected=mask_detected,
         status_code=200,
     )
-    if pii_changed:
+    if mask_detected:
         PII_MASKING_SUCCESSFUL_COUNTER.add(1)
 
     if result.is_string:

@@ -235,4 +235,20 @@ def log_event(
         **context_fields,
         **fields,
     }
+    _apply_identity_message_prefix(payload)
     logger.log(level, json.dumps(payload, ensure_ascii=True, sort_keys=True))
+
+
+def _apply_identity_message_prefix(payload: dict[str, Any]) -> None:
+    preferred_username = payload.pop("preferred_username", None)
+    actor_agent_id = payload.pop("actor_agent_id", None)
+    message = payload.get("message")
+    if not isinstance(message, str):
+        return
+    identity_parts: list[str] = []
+    if preferred_username:
+        identity_parts.append(f"user={preferred_username}")
+    if actor_agent_id:
+        identity_parts.append(f"agent={actor_agent_id}")
+    if identity_parts:
+        payload["message"] = f"[{' '.join(identity_parts)}] {message}"

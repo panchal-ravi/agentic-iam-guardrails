@@ -1,6 +1,7 @@
 import time
 from dataclasses import dataclass
 
+import jwt
 import tenacity
 import tenacity.stop
 import tenacity.wait
@@ -11,6 +12,16 @@ from app_logging.logger import get_logger
 from verify.verify_client import IBMVerifyClient
 
 logger = get_logger(__name__)
+
+
+def _claim_from_token(token: str, claim: str) -> str | None:
+    """Return *claim* from *token* by decoding the JWT without verification."""
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+    except Exception:
+        return None
+    value = payload.get(claim) if isinstance(payload, dict) else None
+    return value if isinstance(value, str) else None
 
 
 @dataclass
@@ -56,6 +67,8 @@ class OBOBroker:
             CacheError:                 Unexpected cache failure.
         """
         start = time.monotonic()
+        preferred_username = _claim_from_token(subject_token, "preferred_username")
+        agent_id = _claim_from_token(actor_token, "agent_id")
 
         # Build a synthetic "role" string so we can reuse TokenCache's two-arg API.
         # The actual cache key is sha256(subject_token + actor_token).
@@ -64,6 +77,8 @@ class OBOBroker:
             duration_ms = int((time.monotonic() - start) * 1000)
             logger.info(
                 "verify_obo_token_exchange",
+                preferred_username=preferred_username,
+                agent_id=agent_id,
                 cache_hit=True,
                 duration_ms=duration_ms,
             )
@@ -76,6 +91,8 @@ class OBOBroker:
         duration_ms = int((time.monotonic() - start) * 1000)
         logger.info(
             "verify_obo_token_exchange",
+            preferred_username=preferred_username,
+            agent_id=agent_id,
             cache_hit=False,
             duration_ms=duration_ms,
         )

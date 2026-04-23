@@ -63,8 +63,6 @@ class AgentRuntime:
         request_path: str,
         request_method: str,
         client_ip: str | None,
-        preferred_username: str | None = None,
-        actor_agent_id: str | None = None,
     ) -> StreamingResponse:
         langchain_messages = [
             SystemMessage(content=SYSTEM_PROMPT)
@@ -77,8 +75,6 @@ class AgentRuntime:
             "agent_request_started",
             message="Agent started processing user request",
             request_id=request_id,
-            preferred_username=preferred_username,
-            actor_agent_id=actor_agent_id,
             user_message=user_message_text,
         )
         log_event(
@@ -109,8 +105,6 @@ class AgentRuntime:
                 request_path=request_path,
                 request_method=request_method,
                 client_ip=client_ip,
-                preferred_username=preferred_username,
-                actor_agent_id=actor_agent_id,
                 user_message=user_message_text,
                 logger=self.logger,
             ),
@@ -257,8 +251,6 @@ def _stream_text_chunks(
     request_path: str,
     request_method: str,
     client_ip: str | None,
-    preferred_username: str | None,
-    actor_agent_id: str | None,
     user_message: str,
     logger: logging.Logger,
 ) -> Iterator[str]:
@@ -278,8 +270,6 @@ def _stream_text_chunks(
             path=request_path,
             http_method=request_method,
             client_ip=client_ip,
-            preferred_username=preferred_username,
-            actor_agent_id=actor_agent_id,
             user_message=user_message,
             response_text="".join(response_parts),
             status_code=200,

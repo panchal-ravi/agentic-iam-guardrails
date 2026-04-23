@@ -9,10 +9,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+from auth.session import get_preferred_username
 from config import log_loaded_configuration
 from observability import bind_request_context, get_logger
 
-bind_request_context(st.session_state, st.context.headers, st.context.url)
+bind_request_context(
+    st.session_state,
+    st.context.headers,
+    st.context.url,
+    preferred_username=get_preferred_username(),
+)
 LOGGER = get_logger("pages.landing")
 log_loaded_configuration()
 

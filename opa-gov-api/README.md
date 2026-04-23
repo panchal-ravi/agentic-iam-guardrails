@@ -7,7 +7,7 @@ The service exposes two endpoints:
 - `POST /evaluate`: security check (prompt injection + unsafe code). Returns 200 when the request is allowed and 400 when it is blocked.
 - `POST /mask`: PII masking. Returns the masked body (plain text or JSON) that the caller can substitute in place of the original response.
 
-Plus `GET /healthz` (liveness), `GET /readyz` (probes OPA's `/health`), and `GET /metrics` (Prometheus-format OpenTelemetry counters for prompt-injection blocks, unsafe-code blocks, and successful PII masking).
+Plus `GET /healthz` (liveness), `GET /readyz` (probes OPA's `/health`), and `GET /metrics` (Prometheus-format OpenTelemetry counters for security violations — prompt injection and unsafe code — and successful PII masking).
 
 ## How it works
 
@@ -98,8 +98,9 @@ Service-specific events include:
 
 - `opa.client.initialized`, `opa.client.closed`: lifecycle
 - `opa.security.checked`, `opa.security.blocked`: `/evaluate` decisions
-- `opa.mask.completed`: `/mask` success
-- `opa.upstream.failed`: OPA timeout, 5xx, or malformed response
+- `opa.mask.completed`: `/mask` result (`INFO` only when masked output contains `*`; otherwise `DEBUG`)
+- `opa.upstream.response`: upstream OPA response metadata, including parsed JSON result preview
+- `opa.upstream.failed`: OPA timeout, 5xx, or malformed response (`WARNING` on `/evaluate`, `DEBUG` on `/mask`)
 - `opa.request.invalid_payload`, `opa.request.body_too_large`: request validation
 - `opa.readiness.probed`: `/readyz` outcome
 
@@ -234,18 +235,17 @@ The service exposes OpenTelemetry counters in Prometheus exposition format on th
 curl -s http://localhost:8000/metrics | grep -E '^opa_'
 ```
 
-| Metric | Type | When it increments |
-|---|---|---|
-| `opa_prompt_injection_total` | counter | `/evaluate` blocks the request with `is_injection=true`. |
-| `opa_unsafe_code_total` | counter | `/evaluate` blocks the request with `is_unsafe=true`. |
-| `opa_pii_masking_successful_total` | counter | `/mask` returns 200 and the masked output differs from the input (real PII masking — fail-open echoes do not count). |
+| Metric | Type | Labels | When it increments |
+|---|---|---|---|
+| `opa_violations_total` | counter | — | `/evaluate` blocks the request (either `is_injection` or `is_unsafe` tripped). Increments once per blocked request. |
+| `opa_pii_masking_successful_total` | counter | — | `/mask` returns 200 and the masked output differs from the input (real PII masking — fail-open echoes do not count). |
 
-Both security flags track independently: a single `/evaluate` call flagged for both injection and unsafe code increments both counters. Counters are unlabeled to keep Prometheus cardinality flat. See [`specs/metrics.md`](specs/metrics.md) for the full contract.
+A single `/evaluate` call flagged for both injection and unsafe code increments `opa_violations_total` once. See [`specs/metrics.md`](specs/metrics.md) for the full contract.
 
 ## Behavior notes
 
 - **Masking envelope unwrapping.** OPA returns `{"result": <value>}` for `masked_result`. The current Envoy Lua filter pipes that envelope verbatim as the new response body, so downstream clients receive JSON instead of the masked content. `opa-gov-api` unwraps `result` by default. Set `OPA_MASK_UNWRAP=false` if you need the legacy envelope shape.
-- **Fail-open.** If OPA is unreachable or returns a malformed body, `/evaluate` returns 200 "allowed" and `/mask` echoes the original body, with a `WARNING` log event `opa.upstream.failed`. Flip with `OPA_FAIL_MODE=closed` for strict mode.
+- **Fail-open.** If OPA is unreachable or returns a malformed body, `/evaluate` returns 200 "allowed" and `/mask` echoes the original body, with event `opa.upstream.failed` (`WARNING` for `/evaluate`, `DEBUG` for `/mask`). Flip with `OPA_FAIL_MODE=closed` for strict mode.
 - **Body size limit.** Enforced via `MAX_BODY_BYTES`. Oversize yields 413 and event `opa.request.body_too_large`.
 - **Metrics on the main port.** `/metrics` is served on the same port as the API. Restrict scraping via Consul `ServiceIntentions` or Kubernetes `NetworkPolicy` at deploy time if needed — there is no built-in authentication.
 

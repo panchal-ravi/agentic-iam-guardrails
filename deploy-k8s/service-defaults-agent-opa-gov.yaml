@@ -74,6 +74,22 @@ spec:
           return table.concat(parts, " ")
         end
 
+        local function _iso_timestamp(handle)
+          local ms
+          local ok, val = pcall(function()
+            return handle:timestamp(EnvoyTimestampResolution.MILLISECOND)
+          end)
+          if ok and val then
+            ms = val
+          else
+            ms = os.time() * 1000
+          end
+          local sec = math.floor(ms / 1000)
+          local frac = math.floor(ms % 1000)
+          return os.date("!%Y-%m-%dT%H:%M:%S", sec)
+            .. string.format(".%03dZ", frac)
+        end
+
         local function _resolve_request_id(handle)
           local headers = handle:headers()
           local rid = headers:get("x-request-id") or headers:get("X-Request-ID")
@@ -85,6 +101,7 @@ spec:
 
         local function log_event(handle, level, func_name, event, message, extra)
           local fields = {
+            {"timestamp", _iso_timestamp(handle)},
             {"host_name", HOST_NAME},
             {"host_ip", HOST_IP},
             {"module", LOG_MODULE},

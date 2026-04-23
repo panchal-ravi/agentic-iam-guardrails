@@ -58,7 +58,7 @@ class IBMVerifyClient:
             "actor_token": actor_token,
         }
 
-        logger.info(
+        logger.debug(
             "verify_obo_token_exchange_payload",
             payload={
                 k: (v if k not in {"subject_token", "actor_token"} else "<redacted>")

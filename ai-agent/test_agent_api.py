@@ -687,12 +687,10 @@ def test_create_app_builds_runtime_from_configured_model(monkeypatch):
 
 def test_agent_request_started_is_logged_with_identity(monkeypatch, caplog):
     client = TestClient(agent_api.app)
-    access_token = _jwt_with_expiry(300)
-    obo_token = _jwt_with_claims(
-        600,
-        preferred_username="alice@example.com",
-        actor={"agent_id": "agent-42"},
-    )
+    access_token = _jwt_with_claims(300, preferred_username="alice@example.com")
+    actor_token = _jwt_with_claims(600, actor={"agent_id": "agent-42"})
+    agent_api.SETTINGS.actor_token_path.write_text(actor_token, encoding="utf-8")
+    obo_token = _jwt_with_expiry(600)
 
     monkeypatch.setattr(
         agent_api.app.state.token_service,
@@ -716,20 +714,21 @@ def test_agent_request_started_is_logged_with_identity(monkeypatch, caplog):
     ]
     assert started_logs
     assert started_logs[-1]["level"] == "INFO"
-    assert started_logs[-1]["message"] == "Agent started processing user request"
-    assert started_logs[-1]["preferred_username"] == "alice@example.com"
-    assert started_logs[-1]["actor_agent_id"] == "agent-42"
+    assert started_logs[-1]["message"] == (
+        "[user=alice@example.com agent=agent-42] "
+        "Agent started processing user request"
+    )
+    assert "preferred_username" not in started_logs[-1]
+    assert "actor_agent_id" not in started_logs[-1]
     assert started_logs[-1]["user_message"] == "hello there"
 
 
 def test_response_sent_includes_identity_and_user_message(monkeypatch, caplog):
     client = TestClient(agent_api.app)
-    access_token = _jwt_with_expiry(300)
-    obo_token = _jwt_with_claims(
-        600,
-        preferred_username="bob@example.com",
-        actor={"agent_id": "agent-99"},
-    )
+    access_token = _jwt_with_claims(300, preferred_username="bob@example.com")
+    actor_token = _jwt_with_claims(600, actor={"agent_id": "agent-99"})
+    agent_api.SETTINGS.actor_token_path.write_text(actor_token, encoding="utf-8")
+    obo_token = _jwt_with_expiry(600)
 
     monkeypatch.setattr(
         agent_api.app.state.token_service,
@@ -753,10 +752,42 @@ def test_response_sent_includes_identity_and_user_message(monkeypatch, caplog):
     ]
     assert response_logs
     assert response_logs[-1]["level"] == "INFO"
-    assert response_logs[-1]["message"] == "Agent finished processing user request"
-    assert response_logs[-1]["preferred_username"] == "bob@example.com"
-    assert response_logs[-1]["actor_agent_id"] == "agent-99"
+    assert response_logs[-1]["message"] == (
+        "[user=bob@example.com agent=agent-99] "
+        "Agent finished processing user request"
+    )
+    assert "preferred_username" not in response_logs[-1]
+    assert "actor_agent_id" not in response_logs[-1]
     assert response_logs[-1]["user_message"] == "what is up"
+
+
+def test_bypass_mode_logs_have_no_identity_prefix(monkeypatch, caplog):
+    client = TestClient(agent_api.app)
+    monkeypatch.setattr(agent_api.app.state.settings, "bypass_auth_token_exchange", True)
+
+    def fail_exchange(*args, **kwargs):
+        raise AssertionError("Token exchange should not run when bypass mode is enabled.")
+
+    monkeypatch.setattr(agent_api.app.state.token_service, "resolve_token", fail_exchange)
+
+    with caplog.at_level(logging.INFO, logger="agent_api"):
+        response = client.post(
+            "/v1/agent/query",
+            json={"messages": [{"role": "user", "content": "hello"}]},
+        )
+
+    assert response.status_code == 200
+
+    post_exchange_logs = [
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("event") in {"agent_request_started", "response_sent"}
+    ]
+    assert post_exchange_logs
+    for payload in post_exchange_logs:
+        assert not payload["message"].startswith("[")
+        assert "preferred_username" not in payload
+        assert "actor_agent_id" not in payload
 
 
 def test_demoted_events_are_not_emitted_at_info(monkeypatch, caplog):
