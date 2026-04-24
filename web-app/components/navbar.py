@@ -145,7 +145,12 @@ def render_navbar() -> None:
     muted_color = "#525252" if theme == "light" else "#c6c6c6"
     border_color = "#e0e0e0" if theme == "light" else "#393939"
 
-    st.markdown('<div class="navbar-container">', unsafe_allow_html=True)
+    st.markdown(
+        f"<h1 style='font-family:\"IBM Plex Sans\",sans-serif;font-size:28px;"
+        f"font-weight:600;color:{text_color};letter-spacing:-0.5px;"
+        f"margin:0 0 20px 0;'>AI Agent Runtime Protection Demo</h1>",
+        unsafe_allow_html=True,
+    )
 
     title_col, theme_col, logout_col = st.columns([6, 1.2, 1])
 
@@ -165,7 +170,9 @@ def render_navbar() -> None:
         )
 
     with theme_col:
-        options = ["🌙 Dark", "☀️ Light"]
+        dark_label = "🌙 Dark"
+        light_label = "☀️ Light"
+        options = [dark_label, light_label]
         selected = st.selectbox(
             "Theme",
             options,
@@ -173,7 +180,7 @@ def render_navbar() -> None:
             label_visibility="collapsed",
             key="theme_select",
         )
-        new_theme = "dark" if selected == "🌙 Dark" else "light"
+        new_theme = "dark" if selected == dark_label else "light"
         if new_theme != theme:
             st.session_state["theme"] = new_theme
             st.rerun()
@@ -182,7 +189,6 @@ def render_navbar() -> None:
         if st.button("Logout", use_container_width=True, key="navbar_logout", type="secondary"):
             logout()
 
-    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown(
         f'<hr style="border-color:{border_color}; margin: 0 0 32px 0;">',
         unsafe_allow_html=True,
