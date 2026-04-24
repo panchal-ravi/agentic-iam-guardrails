@@ -691,7 +691,7 @@ def test_create_app_builds_runtime_from_configured_model(monkeypatch):
 def test_agent_request_started_is_logged_with_identity(monkeypatch, caplog):
     client = TestClient(agent_api.app)
     access_token = _jwt_with_claims(300, preferred_username="alice@example.com")
-    actor_token = _jwt_with_claims(600, actor={"agent_id": "agent-42"})
+    actor_token = _jwt_with_claims(600, agent_id="agent-42")
     agent_api.SETTINGS.actor_token_path.write_text(actor_token, encoding="utf-8")
     agent_api.app.state.actor_agent_id = agent_api._load_startup_agent_id(
         agent_api.app.state.token_service
@@ -732,7 +732,7 @@ def test_agent_request_started_is_logged_with_identity(monkeypatch, caplog):
 def test_response_sent_includes_identity_and_user_message(monkeypatch, caplog):
     client = TestClient(agent_api.app)
     access_token = _jwt_with_claims(300, preferred_username="bob@example.com")
-    actor_token = _jwt_with_claims(600, actor={"agent_id": "agent-99"})
+    actor_token = _jwt_with_claims(600, agent_id="agent-99")
     agent_api.SETTINGS.actor_token_path.write_text(actor_token, encoding="utf-8")
     agent_api.app.state.actor_agent_id = agent_api._load_startup_agent_id(
         agent_api.app.state.token_service
@@ -845,7 +845,7 @@ def _refresh_actor_agent_id(jwt_actor_token: str) -> None:
 
 
 def test_request_received_log_includes_agent_prefix(caplog):
-    _refresh_actor_agent_id(_jwt_with_claims(600, actor={"agent_id": "agent-mw"}))
+    _refresh_actor_agent_id(_jwt_with_claims(600, agent_id="agent-mw"))
     client = TestClient(agent_api.app)
 
     with caplog.at_level(logging.DEBUG, logger="agent_api"):
@@ -862,7 +862,7 @@ def test_request_received_log_includes_agent_prefix(caplog):
 
 
 def test_request_failed_log_includes_agent_prefix(caplog):
-    _refresh_actor_agent_id(_jwt_with_claims(600, actor={"agent_id": "agent-err"}))
+    _refresh_actor_agent_id(_jwt_with_claims(600, agent_id="agent-err"))
     client = TestClient(agent_api.app)
 
     with caplog.at_level(logging.INFO, logger="agent_api"):
@@ -882,7 +882,7 @@ def test_request_failed_log_includes_agent_prefix(caplog):
 
 
 def test_response_sent_for_non_query_endpoint_includes_agent_prefix(caplog):
-    _refresh_actor_agent_id(_jwt_with_claims(600, actor={"agent_id": "agent-tokens"}))
+    _refresh_actor_agent_id(_jwt_with_claims(600, agent_id="agent-tokens"))
     client = TestClient(agent_api.app)
 
     with caplog.at_level(logging.DEBUG, logger="agent_api"):

@@ -78,8 +78,7 @@ def extract_agent_identity_claims(actor_token: str | None) -> dict[str, str | No
     except AppError:
         return {"actor_agent_id": None}
 
-    actor = payload.get("actor")
-    actor_agent_id = actor.get("agent_id") if isinstance(actor, dict) else None
+    actor_agent_id = payload.get("agent_id")
 
     return {
         "actor_agent_id": actor_agent_id if isinstance(actor_agent_id, str) else None,
