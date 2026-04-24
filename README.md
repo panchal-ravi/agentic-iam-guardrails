@@ -4,20 +4,25 @@ This repository contains a demo environment that combines IBM Verify, HashiCorp 
 
 ## High-level architecture
 
+![Agentic security architecture (products)](./documentation/agent_control_plane/agentic-security-architecture-products-light.png)
+
 The core demo flow is:
 
 ```mermaid
 flowchart LR
     user[User]
     verify[IBM Verify login]
-    web[web-app<br/>subject_token]
+    web[web-app<br/>Next.js + Carbon UI<br/>subject_token]
     agent[ai-agent<br/>platform native identity<br/>Vault-issued actor_token]
     exchange[token-exchange<br/>OBO token using subject_token + actor_token]
+    gov[opa-gov-api / wx-gov-api<br/>evaluate + PII mask]
     policy[OPA / watsonx.governance<br/>automatic runtime policy enforcement<br/>by Consul]
+    studio[opa-policy-studio<br/>author + test OPA policies]
 
     user --> verify --> web --> agent
     agent --> exchange
-    agent --> policy
+    agent --> gov --> policy
+    studio -.authors.-> policy
 ```
 
 At a platform level:
@@ -26,8 +31,8 @@ At a platform level:
 2. The runtime platform provides the workload's native identity to the agentic workload.
 3. HashiCorp Vault converts that platform-native identity into an OIDC-conformant identity token for the workload, giving the agent a unique non-human identity without application code changes.
 4. The token-exchange service uses the user token and the Vault-issued workload identity token to obtain delegated credentials for downstream access.
-5. HashiCorp Consul provides the service mesh and transparent runtime enforcement layer for agent-facing traffic.
-6. HashiCorp Vault also acts as the secure policy distribution layer for OPA-backed controls, while pluggable policy engines such as OPA and watsonx.governance evaluate requests and responses without requiring changes to the agent application code.
+5. HashiCorp Consul provides the service mesh and transparent runtime enforcement layer for agent-facing traffic. The Envoy sidecar delegates request/response inspection to `opa-gov-api` (OPA) or `wx-gov-api` (watsonx.governance) via a thin Lua filter.
+6. HashiCorp Vault also acts as the secure policy distribution layer for OPA-backed controls, while pluggable policy engines such as OPA and watsonx.governance evaluate requests and responses without requiring changes to the agent application code. Policies themselves are authored and tested in `opa-policy-studio`.
 
 ### Runtime controls enforced by the platform
 
@@ -52,15 +57,19 @@ The main repo components are:
 
 | Component | Purpose |
 | --- | --- |
-| [`web-app/`](./web-app/) | Streamlit UI for IBM Verify login and AI chat |
+| [`web-app/`](./web-app/) | Next.js 15 (App Router) + React 19 + TypeScript UI styled with the IBM Carbon Design System; handles IBM Verify OAuth login, streaming AI chat, and the subject / actor / OBO token inspector |
+| [`web-app-deprecated/`](./web-app-deprecated/) | Archived Streamlit version of the web app, kept for reference only |
 | [`ai-agent/`](./ai-agent/) | FastAPI-based AI agent runtime that uses delegated identity and executes agent tools |
 | [`token-exchange/`](./token-exchange/) | FastAPI identity broker that performs IBM Verify on-behalf-of token exchange |
+| [`opa-gov-api/`](./opa-gov-api/) | FastAPI wrapper in front of OPA exposing `POST /evaluate` (prompt-injection + unsafe-code check) and `POST /mask` (PII masking), so the Envoy Lua filter can stay thin |
+| [`opa-policy-studio/`](./opa-policy-studio/) | React + TypeScript + Vite frontend-only PoC for authoring, listing, and evaluating OPA policies from the browser (Monaco editor, Rego highlighting, built-in Prompt Injection / Code Safety / PII test presets) |
+| [`wx-gov-api/`](./wx-gov-api/) | watsonx.governance policy engine integration for runtime guardrails |
 | [`infra/`](./infra/) | Terraform and AMI build workflow for provisioning the demo platform, including Vault and Consul foundations |
 | [`deploy-k8s/`](./deploy-k8s/) | Kubernetes, Consul, and policy-enforcement deployment manifests plus deployment order |
+| [`documentation/agent_control_plane/`](./documentation/agent_control_plane/) | Product-level architecture diagrams for the agentic security control plane |
 | [`documentation/agentic_identity/`](./documentation/agentic_identity/) | Design documentation for platform-native identity to Vault-issued agent identity |
 | [`documentation/agentic_runtime_security/`](./documentation/agentic_runtime_security/) | Design documentation for runtime security enforcement with Consul, Vault, and pluggable policy engines |
 | [`deploy-k8s/opa-server.yaml`](./deploy-k8s/opa-server.yaml) | Deploys the OPA server used for runtime policy evaluation, with Vault Agent injecting policies securely from HashiCorp Vault into the OPA runtime |
-| [`wx-gov-api/`](./wx-gov-api/) | watsonx.governance policy engine integration for runtime guardrails |
 | HashiCorp Vault + platform identity | Issues OIDC-conformant workload identity tokens for agentic workloads from platform-native identity and securely distributes OPA policy content |
 | HashiCorp Consul + Envoy | Enforces transparent runtime controls and policy checks around service-to-service traffic |
 
@@ -94,8 +103,8 @@ The documented deployment flow covers:
 1. Consul base configuration
 2. `token-exchange`
 3. `ai-agent`
-4. `web-app`
-5. OPA deployment
+4. `web-app` (Next.js + Carbon)
+5. OPA deployment (plus `opa-gov-api` as the Envoy-facing HTTP front end)
 6. `wx-gov-api` deployment
 7. Service intentions
 
@@ -108,9 +117,11 @@ Use the component READMEs below for service-specific configuration, local develo
 | [`infra/README.md`](./infra/README.md) | Terraform provisioning sequence for the demo environment |
 | [`infra/ami/base_image/README.md`](./infra/ami/base_image/README.md) | Base AMI build process required before Terraform apply |
 | [`deploy-k8s/README.md`](./deploy-k8s/README.md) | Kubernetes deployment order, secrets, Consul config, and cleanup |
-| [`web-app/README.md`](./web-app/README.md) | Web UI setup, IBM Verify OAuth configuration, Docker, and Kubernetes details |
+| [`web-app/README.md`](./web-app/README.md) | Next.js + Carbon web UI setup, IBM Verify OAuth configuration, scripts, Docker, and Kubernetes details |
 | [`ai-agent/README.md`](./ai-agent/README.md) | AI agent API behavior, configuration, local run, container build, and Kubernetes details |
 | [`token-exchange/README.md`](./token-exchange/README.md) | Identity broker configuration, OBO token exchange service behavior, and deployment details |
+| [`opa-gov-api/README.md`](./opa-gov-api/README.md) | OPA Governance API (`/evaluate`, `/mask`) wrapper setup, env vars, and Envoy integration contract |
+| [`opa-policy-studio/README.md`](./opa-policy-studio/README.md) | OPA Policy Studio PoC — run the browser-based policy authoring / evaluation UI against an OPA server |
 | [`documentation/agentic_identity/platform_to_agentic_identity.md`](./documentation/agentic_identity/platform_to_agentic_identity.md) | Platform-native identity to Vault-issued agent identity design pattern |
 | [`documentation/agentic_runtime_security/ai_guardrails.md`](./documentation/agentic_runtime_security/ai_guardrails.md) | Runtime security architecture with Consul, Vault, OPA, and watsonx.governance |
 | [`wx-gov-api/README.md`](./wx-gov-api/README.md) | watsonx.governance policy engine service setup and API usage |

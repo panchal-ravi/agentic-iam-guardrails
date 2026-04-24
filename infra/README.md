@@ -76,7 +76,14 @@ Before provisioning the Terraform modules, build the base image used by the depl
    terraform apply -input=false -auto-approve -target=module.observability
    ```
 
-8. Stop here. Do **not** provision:
+8. Optionally apply `edr` (Uptycs `k8sosquery` and `kubequery` Helm releases). The releases are gated by `enable_k8sosquery` and `enable_kubequery` in `terraform.tfvars`; skip this step if both are `false`:
+
+   ```bash
+   terraform plan -input=false -target=module.edr
+   terraform apply -input=false -auto-approve -target=module.edr
+   ```
+
+9. Stop here. Do **not** provision:
 
 - `module.clients`
 - `module.workload-identity`
@@ -86,8 +93,9 @@ Before provisioning the Terraform modules, build the base image used by the depl
 - `module.common` creates `generated/ssh_key`.
 - `module.servers` bootstraps Vault and writes `generated/vault_token` and `generated/nomad_management_token`.
 - `module.consul_client_k8s` installs the Consul components needed in the EKS cluster after the servers are available.
-- `module.observability` installs `kube-prometheus-stack`, Loki, and Promtail into the `monitoring` namespace using Helm values from `config/observability/`.
-- Grafana is deployed by `kube-prometheus-stack` and is preconfigured with a Loki datasource pointing at `loki-gateway.monitoring.svc.cluster.local`.
-- Loki is configured in single-binary mode with a single replica, filesystem storage, and both `chunksCache` and `resultsCache` disabled for the demo environment.
-- Promtail extracts a top-level JSON `request_id` field from container logs and sends it to Loki as a label.
+- `module.observability` installs the Grafana + Prometheus + Loki stack into the `monitoring` namespace using Helm values from `config/observability/`:
+  - `kube-prometheus-stack` provides Prometheus (with an extra `kubernetes-pods-all` scrape job for annotated pods) and Grafana, preconfigured with a Loki datasource pointing at `loki-gateway.monitoring.svc.cluster.local`.
+  - Loki runs in single-binary mode with one replica, filesystem storage (10Gi `gp2` PVC), and both `chunksCache` and `resultsCache` disabled for the demo environment.
+  - Promtail ships container logs to Loki, drops `/metrics` and self-logs (Loki, Grafana, Consul dataplane noise), and extracts a top-level JSON `request_id` field as a Loki label.
+- `module.edr` installs the optional Uptycs `k8sosquery` and `kubequery` Helm releases into their own namespaces, each gated by its `enable_*` variable.
 - If Terraform returns `InvalidClientTokenId`, refresh or replace the AWS credentials in your shell and rerun step 4.
