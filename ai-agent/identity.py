@@ -29,6 +29,7 @@ def read_actor_token(actor_token_path: Path, logger: logging.Logger) -> str:
         logger,
         "actor_token_path_used",
         level=logging.DEBUG,
+        message="Reading actor token from configured path",
         actor_token_path=str(actor_token_path),
     )
 
@@ -262,6 +263,7 @@ class OboTokenService:
                     self.logger,
                     "token_cache_miss",
                     level=logging.DEBUG,
+                    message="OBO token cache miss",
                     request_id=request_id,
                     cache_key=cache_key,
                 )
@@ -275,6 +277,7 @@ class OboTokenService:
                 self.logger,
                 "token_cache_hit",
                 level=logging.DEBUG,
+                message="OBO token cache hit",
                 request_id=request_id,
                 cache_key=cache_key,
                 expiry_time=cached_entry.expiry_time,
@@ -295,6 +298,7 @@ class OboTokenService:
                     self.logger,
                     "token_cache_hit",
                     level=logging.DEBUG,
+                    message="OBO token cache hit",
                     request_id=request_id,
                     cache_key=cache_key,
                     expiry_time=cached_entry.expiry_time,
@@ -306,6 +310,7 @@ class OboTokenService:
                 self.logger,
                 "token_cache_miss",
                 level=logging.DEBUG,
+                message="OBO token cache miss",
                 request_id=request_id,
                 cache_key=cache_key,
             )

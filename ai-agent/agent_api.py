@@ -63,6 +63,22 @@ def _error_response(request: Request, status_code: int, error: str, message: str
     )
 
 
+def _load_startup_agent_id(token_service: OboTokenService) -> str | None:
+    try:
+        actor_token = token_service.read_actor_token()
+    except AppError as exc:
+        log_event(
+            LOGGER,
+            "actor_token_unavailable_at_startup",
+            level=logging.WARNING,
+            message="Actor token unavailable at startup; agent_id will be omitted from log prefix.",
+            error=exc.error,
+            error_message=exc.message,
+        )
+        return None
+    return extract_agent_identity_claims(actor_token)["actor_agent_id"]
+
+
 def create_app(
     settings: Settings | None = None,
     runtime: AgentRuntime | None = None,
@@ -76,6 +92,7 @@ def create_app(
         settings=active_settings,
         logger=LOGGER,
     )
+    app.state.actor_agent_id = _load_startup_agent_id(app.state.token_service)
 
     @app.middleware("http")
     async def request_logging_middleware(request: Request, call_next):
@@ -87,12 +104,14 @@ def create_app(
             path=request.url.path,
             http_method=request.method,
             client_ip=request.state.client_ip,
+            actor_agent_id=request.app.state.actor_agent_id,
         )
         try:
             log_event(
                 LOGGER,
                 "request_received",
                 level=logging.DEBUG,
+                message="Request received",
                 request_id=request_id,
                 path=request.url.path,
                 method=request.method,
@@ -106,6 +125,7 @@ def create_app(
                     LOGGER,
                     "response_sent",
                     level=logging.DEBUG,
+                    message="Response sent",
                     request_id=request_id,
                     path=request.url.path,
                     status_code=response.status_code,
@@ -144,7 +164,6 @@ def create_app(
     async def query_agent(request: Request, chat_request: ChatRequest):
         obo_token: str | None = None
         preferred_username: str | None = None
-        actor_agent_id: str | None = None
         if not request.app.state.settings.bypass_auth_token_exchange:
             access_token = extract_bearer_token(request)
             access_token_payload = validate_access_token(access_token)
@@ -152,17 +171,10 @@ def create_app(
                 access_token,
                 request.state.request_id,
             )
-            actor_token = request.app.state.token_service.read_actor_token()
             preferred_username = extract_user_identity_claims(
                 access_token_payload
             )["preferred_username"]
-            actor_agent_id = extract_agent_identity_claims(
-                actor_token
-            )["actor_agent_id"]
-        bind_log_context(
-            preferred_username=preferred_username,
-            actor_agent_id=actor_agent_id,
-        )
+        bind_log_context(preferred_username=preferred_username)
         return request.app.state.agent_runtime.handle_request(
             chat_request=chat_request,
             obo_token=obo_token,

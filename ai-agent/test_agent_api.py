@@ -154,6 +154,9 @@ def isolate_runtime(tmp_path, monkeypatch):
         logger=agent_api.LOGGER,
     )
     agent_api.app.state.token_service.clear_cache()
+    agent_api.app.state.actor_agent_id = agent_api._load_startup_agent_id(
+        agent_api.app.state.token_service
+    )
 
 
 def test_missing_bearer_token_is_rejected():
@@ -690,6 +693,9 @@ def test_agent_request_started_is_logged_with_identity(monkeypatch, caplog):
     access_token = _jwt_with_claims(300, preferred_username="alice@example.com")
     actor_token = _jwt_with_claims(600, actor={"agent_id": "agent-42"})
     agent_api.SETTINGS.actor_token_path.write_text(actor_token, encoding="utf-8")
+    agent_api.app.state.actor_agent_id = agent_api._load_startup_agent_id(
+        agent_api.app.state.token_service
+    )
     obo_token = _jwt_with_expiry(600)
 
     monkeypatch.setattr(
@@ -728,6 +734,9 @@ def test_response_sent_includes_identity_and_user_message(monkeypatch, caplog):
     access_token = _jwt_with_claims(300, preferred_username="bob@example.com")
     actor_token = _jwt_with_claims(600, actor={"agent_id": "agent-99"})
     agent_api.SETTINGS.actor_token_path.write_text(actor_token, encoding="utf-8")
+    agent_api.app.state.actor_agent_id = agent_api._load_startup_agent_id(
+        agent_api.app.state.token_service
+    )
     obo_token = _jwt_with_expiry(600)
 
     monkeypatch.setattr(
@@ -826,3 +835,71 @@ def test_demoted_events_are_not_emitted_at_info(monkeypatch, caplog):
     assert "token_cache_hit" not in info_events
     assert "token_cache_miss" not in info_events
     assert ("agent_execution", "invoke") not in info_stages
+
+
+def _refresh_actor_agent_id(jwt_actor_token: str) -> None:
+    agent_api.SETTINGS.actor_token_path.write_text(jwt_actor_token, encoding="utf-8")
+    agent_api.app.state.actor_agent_id = agent_api._load_startup_agent_id(
+        agent_api.app.state.token_service
+    )
+
+
+def test_request_received_log_includes_agent_prefix(caplog):
+    _refresh_actor_agent_id(_jwt_with_claims(600, actor={"agent_id": "agent-mw"}))
+    client = TestClient(agent_api.app)
+
+    with caplog.at_level(logging.DEBUG, logger="agent_api"):
+        client.get("/v1/agent/tokens")
+
+    received_logs = [
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("event") == "request_received"
+    ]
+    assert received_logs
+    assert received_logs[-1]["message"].startswith("[agent=agent-mw]")
+    assert "actor_agent_id" not in received_logs[-1]
+
+
+def test_request_failed_log_includes_agent_prefix(caplog):
+    _refresh_actor_agent_id(_jwt_with_claims(600, actor={"agent_id": "agent-err"}))
+    client = TestClient(agent_api.app)
+
+    with caplog.at_level(logging.INFO, logger="agent_api"):
+        response = client.post(
+            "/v1/agent/query",
+            json={"messages": [{"role": "user", "content": "hi"}]},
+        )
+
+    assert response.status_code == 401
+    failed_logs = [
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("event") == "request_failed"
+    ]
+    assert failed_logs
+    assert failed_logs[-1]["message"].startswith("[agent=agent-err]")
+
+
+def test_response_sent_for_non_query_endpoint_includes_agent_prefix(caplog):
+    _refresh_actor_agent_id(_jwt_with_claims(600, actor={"agent_id": "agent-tokens"}))
+    client = TestClient(agent_api.app)
+
+    with caplog.at_level(logging.DEBUG, logger="agent_api"):
+        client.get("/v1/agent/tokens")
+
+    response_logs = [
+        payload
+        for payload in _structured_log_records(caplog, "agent_api")
+        if payload.get("event") == "response_sent"
+    ]
+    assert response_logs
+    assert response_logs[-1]["message"].startswith("[agent=agent-tokens]")
+
+
+def test_load_startup_agent_id_returns_none_when_actor_token_missing(tmp_path, monkeypatch):
+    missing_path = tmp_path / "absent-actor-token"
+    monkeypatch.setattr(agent_api.SETTINGS, "actor_token_path", missing_path)
+    service = OboTokenService(settings=agent_api.SETTINGS, logger=agent_api.LOGGER)
+
+    assert agent_api._load_startup_agent_id(service) is None

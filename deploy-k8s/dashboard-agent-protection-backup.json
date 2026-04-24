@@ -2,11 +2,20 @@
   "apiVersion": "dashboard.grafana.app/v1beta1",
   "kind": "DashboardWithAccessInfo",
   "metadata": {
-    "name": "agent-protection-new",
-    "generation": 6,
-    "creationTimestamp": "2026-04-23T12:08:17Z",
+    "name": "agent-protection",
+    "namespace": "default",
+    "uid": "4770be24-d65e-4c71-a301-3d528da446f2",
+    "resourceVersion": "1776940004398003",
+    "generation": 21,
+    "creationTimestamp": "2026-04-23T07:00:11Z",
     "labels": {},
-    "annotations": {}
+    "annotations": {
+      "grafana.app/createdBy": "user:ffjqubk0jrta8f",
+      "grafana.app/folder": "",
+      "grafana.app/saved-from-ui": "Grafana v12.4.2 (ebade4c739)",
+      "grafana.app/updatedBy": "user:ffjqubk0jrta8f",
+      "grafana.app/updatedTimestamp": "2026-04-23T10:26:44Z"
+    }
   },
   "spec": {
     "annotations": {
@@ -355,7 +364,7 @@
         },
         "id": 101,
         "panels": [],
-        "title": "Matching Logs — click a stat, then expand a row and click '+' next to request_id to pivot to the full trace below",
+        "title": "Matching Logs — click a stat, then copy a request_id into the 'Trace request_id' box to see its full trace below",
         "type": "row"
       },
       {
@@ -363,7 +372,7 @@
           "type": "loki",
           "uid": "P8E80F9AEF21F6940"
         },
-        "description": "Step 1: click a stat above. Violation/event rows render red via level=error. Step 2: expand a row (click the ⋮ icon), find the request_id label, and click the '+' magnifier icon next to its value. That adds an ad-hoc 'request_id = …' filter that automatically narrows both this panel and the 'Full trace' panel below.",
+        "description": "Step 1: click a stat above. Violation/event rows render red via level=error. Step 2: copy the request_id from any row and paste it into the 'Trace request_id' variable at the top of the dashboard — the panel below will show every log line for that request_id.",
         "fieldConfig": {
           "defaults": {},
           "overrides": []
@@ -415,7 +424,7 @@
         },
         "id": 102,
         "panels": [],
-        "title": "Full request trace — add an ad-hoc 'request_id = …' filter above to narrow this panel",
+        "title": "Full request trace — all logs for $trace_rid",
         "type": "row"
       },
       {
@@ -423,7 +432,7 @@
           "type": "loki",
           "uid": "P8E80F9AEF21F6940"
         },
-        "description": "Expand a violation row in the panel above, find the request_id label, and click the '+' magnifier icon next to it. That adds a 'request_id = …' ad-hoc filter (visible in the Filters bar at the top of the dashboard). This panel then narrows to every log line sharing that request_id — the full chain of actions leading to the violation.",
+        "description": "Paste a request_id into the 'Trace request_id' dashboard variable at the top. This panel shows every log line (from wx-gov-api and opa-gov-api) sharing that request_id — the complete chain of actions that led to the violation.",
         "fieldConfig": {
           "defaults": {
             "color": {
@@ -458,24 +467,24 @@
             {
               "matcher": {
                 "id": "byName",
-                "options": "container"
+                "options": "Message"
               },
               "properties": [
                 {
                   "id": "custom.width",
-                  "value": 119
+                  "value": 429
                 }
               ]
             },
             {
               "matcher": {
                 "id": "byName",
-                "options": "message"
+                "options": "labels"
               },
               "properties": [
                 {
                   "id": "custom.width",
-                  "value": 551
+                  "value": 596
                 }
               ]
             },
@@ -487,31 +496,31 @@
               "properties": [
                 {
                   "id": "custom.width",
-                  "value": 263
+                  "value": 215
                 }
               ]
             },
             {
               "matcher": {
                 "id": "byName",
-                "options": "app"
+                "options": "App"
               },
               "properties": [
                 {
                   "id": "custom.width",
-                  "value": 113
+                  "value": 198
                 }
               ]
             },
             {
               "matcher": {
                 "id": "byName",
-                "options": "request_id"
+                "options": "Container"
               },
               "properties": [
                 {
                   "id": "custom.width",
-                  "value": 380
+                  "value": 204
                 }
               ]
             }
@@ -526,13 +535,7 @@
         "id": 11,
         "options": {
           "cellHeight": "sm",
-          "showHeader": true,
-          "sortBy": [
-            {
-              "desc": false,
-              "displayName": "Time"
-            }
-          ]
+          "showHeader": true
         },
         "pluginVersion": "12.4.2",
         "targets": [
@@ -543,12 +546,12 @@
             },
             "direction": "backward",
             "editorMode": "code",
-            "expr": "{cluster=\"ai-security-demo\", namespace!~\"consul|kube-system|monitoring|kubequery\", container!~\"vault-agent\", request_id!~\"-|''\"}\n  |= \"request_id\"\n  | json\n  | regexp `(?:\"request_id\":\\s*\"|request_id=)(?P<request_id_rx>[a-f0-9\\-]+)`\n  | regexp `(?:\"message\":\\s*\"|message=\")(?P<message_rx>[^\"]*)\"`                                                                         \n  | label_format request_id=`{{ or .request_id .request_id_rx }}`, message=`{{ or .message .message_rx }}`\n  | keep time, request_id, app, container, message",
+            "expr": "{request_id=\"$trace_rid\"}\n  | json\n  | regexp `(?:\"request_id\":\\s*\"|request_id=)(?P<request_id_rx>[a-f0-9\\-]+)`\n  | regexp `(?:\"message\":\\s*\"|message=\")(?P<message_rx>[^\"]*)\"`                                                                         \n  | label_format request_id=`{{ or .request_id .request_id_rx }}`, message=`{{ or .message .message_rx }}`\n  | keep time, request_id, app, container, message",
             "queryType": "range",
             "refId": "A"
           }
         ],
-        "title": "Full trace (all logs for wx-gov-api + opa-gov-api — narrow via the Filters bar)",
+        "title": "Full trace — request_id = $trace_rid",
         "transformations": [
           {
             "id": "extractFields",
@@ -564,39 +567,102 @@
             "id": "organize",
             "options": {
               "excludeByName": {
-                "__error__": true,
-                "__error_details__": true,
-                "time": true
+                "client_ip": true,
+                "cluster": true,
+                "detected_level": true,
+                "environment": true,
+                "event": true,
+                "filename": true,
+                "function": true,
+                "host": true,
+                "host_ip": true,
+                "host_name": true,
+                "hostname": true,
+                "job": true,
+                "level": true,
+                "line": true,
+                "logger": true,
+                "message_rx": true,
+                "method": true,
+                "module": true,
+                "namespace": true,
+                "node_name": true,
+                "path": true,
+                "pod": true,
+                "process": true,
+                "process_id": true,
+                "process_name": true,
+                "request_id_extracted": true,
+                "request_id_rx": true,
+                "request_path": true,
+                "response_hap": true,
+                "response_harm": true,
+                "response_jailbreak": true,
+                "response_prompt_safety_risk": true,
+                "response_unethical_behavior": true,
+                "service": true,
+                "service_name": true,
+                "severity": true,
+                "stream": true,
+                "thread": true,
+                "thread_name": true,
+                "timestamp": true
               },
               "includeByName": {},
               "indexByName": {
                 "Time": 0,
-                "__error__": 6,
-                "__error_details__": 7,
                 "app": 2,
+                "client_ip": 5,
+                "cluster": 6,
                 "container": 3,
+                "detected_level": 7,
+                "environment": 38,
+                "event": 8,
+                "filename": 9,
+                "function": 10,
+                "host": 39,
+                "host_ip": 11,
+                "host_name": 12,
+                "hostname": 40,
+                "job": 13,
+                "level": 14,
+                "line": 15,
+                "logger": 16,
                 "message": 4,
+                "message_rx": 17,
+                "method": 18,
+                "module": 19,
+                "namespace": 20,
+                "node_name": 21,
+                "path": 22,
+                "pod": 23,
+                "process": 41,
+                "process_id": 24,
+                "process_name": 42,
                 "request_id": 1,
-                "time": 5
+                "request_id_extracted": 25,
+                "request_id_rx": 26,
+                "request_path": 43,
+                "response_hap": 27,
+                "response_harm": 28,
+                "response_jailbreak": 29,
+                "response_prompt_safety_risk": 30,
+                "response_unethical_behavior": 31,
+                "service": 32,
+                "service_name": 33,
+                "severity": 34,
+                "stream": 35,
+                "thread": 44,
+                "thread_name": 36,
+                "timestamp": 37
               },
               "renameByName": {
-                "Time": "time",
-                "app": "app",
-                "container": "container",
-                "message": "message",
-                "request_id": "request_id"
+                "Time": "Time",
+                "app": "App",
+                "container": "Container",
+                "message": "Message",
+                "request_id": "Request ID"
               }
-            }
-          },
-          {
-            "id": "sortBy",
-            "options": {
-              "fields": {},
-              "sort": [
-                {
-                  "field": "Time"
-                }
-              ]
             }
           }
         ],
@@ -632,28 +698,44 @@
           "type": "textbox"
         },
         {
+          "current": {
+            "text": "eacb4d01-8356-4cba-bbb4-85ec7793195d",
+            "value": "eacb4d01-8356-4cba-bbb4-85ec7793195d"
+          },
+          "description": "Paste a request_id (from a violation row in the panel above) to show every log line sharing that request_id in the 'Full trace' panel below.",
+          "label": "Trace request_id",
+          "name": "trace_rid",
+          "options": [
+            {
+              "selected": true,
+              "text": "eacb4d01-8356-4cba-bbb4-85ec7793195d",
+              "value": "eacb4d01-8356-4cba-bbb4-85ec7793195d"
+            }
+          ],
+          "query": "eacb4d01-8356-4cba-bbb4-85ec7793195d",
+          "type": "textbox"
+        },
+        {
           "baseFilters": [],
           "datasource": {
             "type": "loki",
             "uid": "P8E80F9AEF21F6940"
           },
-          "description": "Click the '+' icon next to any label value (e.g. request_id) in an expanded log row to add it as a filter here. The filter is appended to every Loki query on the dashboard automatically.",
           "filters": [],
-          "label": "Filters",
           "name": "Filters",
           "type": "adhoc"
         }
       ]
     },
     "time": {
-      "from": "now-15m",
+      "from": "now-3h",
       "to": "now"
     },
     "timepicker": {},
     "timezone": "browser",
-    "title": "Agent Runtime Protection",
-    "uid": "agent-protection-new",
-    "version": 6,
+    "title": "Agent Runtime Protection — OPA & watsonx.governance",
+    "uid": "agent-protection",
+    "version": 21,
     "weekStart": ""
   },
   "status": {}

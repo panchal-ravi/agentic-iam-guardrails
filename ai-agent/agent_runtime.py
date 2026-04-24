@@ -81,6 +81,7 @@ class AgentRuntime:
             self.logger,
             "agent_execution",
             level=logging.DEBUG,
+            message="Invoking LLM with tools",
             request_id=request_id,
             stage="invoke",
         )
