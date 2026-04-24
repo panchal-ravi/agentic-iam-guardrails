@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Motion</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#fff;color:#161616;font-family:var(--cds-font-sans);}
+  .card{padding:20px 28px;}
+  .row{display:grid;grid-template-columns:160px 1fr 72px;gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid #f4f4f4;}
+  .row:last-child{border-bottom:none;}
+  .tok{font-family:var(--cds-font-mono);font-size:11px;color:#525252;}
+  .track{position:relative;height:16px;background:#f4f4f4;overflow:hidden;}
+  .dot{position:absolute;top:2px;left:0;width:12px;height:12px;background:#0f62fe;}
+  .val{font-family:var(--cds-font-mono);font-size:11px;color:#6f6f6f;text-align:right;}
+  @keyframes ride { 0%{left:0;} 50%{left:calc(100% - 12px);} 100%{left:0;} }
+  .d70  .dot{animation: ride 1.4s cubic-bezier(0.2,0,0.38,0.9) infinite;}
+  .d150 .dot{animation: ride 1.6s cubic-bezier(0,0,0.38,0.9) infinite;}
+  .d240 .dot{animation: ride 1.8s cubic-bezier(0.2,0,1,0.9) infinite;}
+  .d400 .dot{animation: ride 2.2s cubic-bezier(0,0,0.3,1) infinite;}
+  .d700 .dot{animation: ride 2.8s cubic-bezier(0.4,0.14,1,1) infinite;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="row d70"><div class="tok">fast-01 · standard</div><div class="track"><div class="dot"></div></div><div class="val">70ms</div></div>
+  <div class="row d150"><div class="tok">moderate-01 · entrance</div><div class="track"><div class="dot"></div></div><div class="val">150ms</div></div>
+  <div class="row d240"><div class="tok">moderate-02 · exit</div><div class="track"><div class="dot"></div></div><div class="val">240ms</div></div>
+  <div class="row d400"><div class="tok">slow-01 · expressive</div><div class="track"><div class="dot"></div></div><div class="val">400ms</div></div>
+  <div class="row d700"><div class="tok">slow-02 · exit expr</div><div class="track"><div class="dot"></div></div><div class="val">700ms</div></div>
+</div>
+</body>
+</html>

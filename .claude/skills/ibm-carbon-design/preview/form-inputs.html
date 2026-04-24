@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Form inputs</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#fff;font-family:var(--cds-font-sans);color:#161616;}
+  .card{padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .lbl{font-size:12px;line-height:16px;letter-spacing:.32px;color:#525252;}
+  .input{height:40px;padding:0 16px;background:#f4f4f4;border:none;border-bottom:1px solid #8d8d8d;font-size:14px;font-family:var(--cds-font-sans);color:#161616;}
+  .input::placeholder{color:#a8a8a8;}
+  .input.focused{outline:2px solid #0f62fe;outline-offset:-2px;border-bottom-color:transparent;}
+  .input.invalid{border-bottom-color:#da1e28;padding-right:40px;}
+  .helper{font-size:12px;color:#6f6f6f;letter-spacing:.32px;}
+  .err{font-size:12px;color:#da1e28;letter-spacing:.32px;}
+  .sel{position:relative;}
+  .sel::after{content:"";position:absolute;right:14px;top:50%;transform:translateY(-50%);width:12px;height:12px;background:#161616;mask:url(../assets/icons/chevron--down.svg) center/12px no-repeat;-webkit-mask:url(../assets/icons/chevron--down.svg) center/12px no-repeat;pointer-events:none;}
+  .cb{display:flex;gap:8px;align-items:center;font-size:14px;}
+  .cb input{accent-color:#0f62fe;width:16px;height:16px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="field"><label class="lbl">Email address</label><input class="input focused" value="sam@ibm.com"><div class="helper">Primary contact for this account.</div></div>
+  <div class="field sel"><label class="lbl">Resource group</label><input class="input" value="Default" readonly></div>
+  <div class="field"><label class="lbl">API key</label><input class="input invalid" value="sk_12"><div class="err">Enter a valid API key.</div></div>
+  <div class="field"><label class="lbl">Description (optional)</label><input class="input" placeholder="Add a short description"></div>
+  <div class="field"><label class="lbl">Consent</label>
+    <div class="cb"><input type="checkbox" checked> I agree to the terms of service</div>
+    <div class="cb"><input type="checkbox"> Subscribe to product updates</div>
+  </div>
+  <div class="field"><label class="lbl">Plan</label>
+    <div class="cb"><input type="radio" name="p" checked> Lite — Free</div>
+    <div class="cb"><input type="radio" name="p"> Standard — $99/mo</div>
+  </div>
+</div>
+</body>
+</html>

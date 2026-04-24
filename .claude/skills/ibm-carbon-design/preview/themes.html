@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Themes</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#fff;}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:2px;padding:20px 24px;font-family:var(--cds-font-sans);}
+  .theme{padding:14px 16px;min-height:160px;display:flex;flex-direction:column;gap:10px;}
+  .theme h3{margin:0;font-size:12px;font-weight:600;letter-spacing:.32px;text-transform:uppercase;font-family:var(--cds-font-mono);}
+  .theme .name{font-size:18px;font-weight:400;}
+  .stack{display:flex;flex-direction:column;gap:3px;margin-top:auto;}
+  .layer{height:14px;}
+  .white{background:#ffffff;color:#161616;border:1px solid #e0e0e0;}
+  .g10{background:#f4f4f4;color:#161616;}
+  .g90{background:#262626;color:#f4f4f4;}
+  .g100{background:#161616;color:#f4f4f4;}
+  .white .layer.a{background:#f4f4f4;} .white .layer.b{background:#ffffff;border:1px solid #e0e0e0;} .white .layer.c{background:#f4f4f4;}
+  .g10 .layer.a{background:#ffffff;} .g10 .layer.b{background:#f4f4f4;} .g10 .layer.c{background:#ffffff;}
+  .g90 .layer.a{background:#393939;} .g90 .layer.b{background:#525252;} .g90 .layer.c{background:#6f6f6f;}
+  .g100 .layer.a{background:#262626;} .g100 .layer.b{background:#393939;} .g100 .layer.c{background:#525252;}
+  .muted{font-size:11px;opacity:.7;font-family:var(--cds-font-mono);}
+</style>
+</head>
+<body>
+<div class="grid">
+  <div class="theme white"><h3>White</h3><div class="name">Light default</div><div class="muted">#ffffff base</div>
+    <div class="stack"><div class="layer a"></div><div class="layer b"></div><div class="layer c"></div></div>
+  </div>
+  <div class="theme g10"><h3>Gray 10</h3><div class="name">Light alt</div><div class="muted">#f4f4f4 base</div>
+    <div class="stack"><div class="layer a"></div><div class="layer b"></div><div class="layer c"></div></div>
+  </div>
+  <div class="theme g90"><h3>Gray 90</h3><div class="name">Dark default</div><div class="muted">#262626 base</div>
+    <div class="stack"><div class="layer a"></div><div class="layer b"></div><div class="layer c"></div></div>
+  </div>
+  <div class="theme g100"><h3>Gray 100</h3><div class="name">Dark alt</div><div class="muted">#161616 base</div>
+    <div class="stack"><div class="layer a"></div><div class="layer b"></div><div class="layer c"></div></div>
+  </div>
+</div>
+</body>
+</html>

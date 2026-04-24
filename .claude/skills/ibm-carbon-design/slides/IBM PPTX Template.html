@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>IBM PowerPoint template — HTML slides</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  :root{
+    --ibm-black:#000000;
+    --ibm-white:#ffffff;
+    --ibm-gray-10:#f4f4f4;
+    --ibm-cyan-10:#e5f6ff;
+    --ibm-yellow-10:#fcf4d6;
+    --ibm-blue-60:#0f62fe;
+    --ibm-gray-60:#525252;
+  }
+  html,body{margin:0;padding:0;background:#000;font-family:var(--cds-font-sans);color:#000;}
+  deck-stage > section{background:#fff;}
+  .slide{width:100%;height:100%;padding:64px 80px;position:relative;display:flex;flex-direction:column;box-sizing:border-box;}
+  .slide.cyan{background:var(--ibm-cyan-10);}
+  .slide.gray{background:var(--ibm-gray-10);}
+  .slide.black{background:#000;color:#fff;}
+  .eyebrow{font-size:20px;line-height:24px;font-weight:300;margin:0 0 4px;}
+  .eyebrow .dash{margin:0 8px;color:#525252;}
+  .crumb{font-size:20px;color:#525252;font-weight:300;}
+  .title-xl{font-size:112px;line-height:100.8px;font-weight:300;letter-spacing:-1.5px;margin:0;}
+  .title-l{font-size:84px;line-height:75.6px;font-weight:300;letter-spacing:-1px;margin:0;}
+  .title-m{font-size:68px;line-height:61.2px;font-weight:300;letter-spacing:-.5px;margin:0;}
+  .title-s{font-size:42px;line-height:46.2px;font-weight:300;margin:0;}
+  .h-28{font-size:28px;line-height:33.6px;font-weight:300;}
+  .h-24{font-size:24px;line-height:28.8px;font-weight:300;}
+  .body-20{font-size:20px;line-height:24px;font-weight:400;color:#161616;}
+  .meta{font-size:16px;line-height:19.2px;font-weight:400;color:#525252;}
+  .rule{height:1px;background:#000;width:100%;}
+  .rule-w{height:1px;background:#fff;width:100%;}
+  .footer{position:absolute;left:80px;right:80px;bottom:32px;display:flex;align-items:center;font-size:16px;color:#161616;}
+  .footer .page{margin-left:auto;}
+  .black .footer{color:#f4f4f4;}
+  .ibm-logo{font-size:16px;font-weight:700;letter-spacing:.5px;}
+  .header-small{display:flex;gap:0;align-items:baseline;}
+  .header-small .dash{margin:0 8px;color:#525252;}
+  .num{font-family:var(--cds-font-mono);}
+  .serif-it{font-family:var(--cds-font-serif);font-style:italic;font-weight:400;}
+  em.serif{font-family:var(--cds-font-serif);font-style:italic;font-weight:400;}
+  ul.dashes{list-style:none;padding:0;margin:0;}
+  ul.dashes li{font-size:24px;line-height:28.8px;color:#161616;padding-left:24px;position:relative;margin-bottom:8px;}
+  ul.dashes li::before{content:"–";position:absolute;left:0;}
+  .col-4{display:grid;grid-template-columns:repeat(4,1fr);gap:40px;}
+  .col-2{display:grid;grid-template-columns:1fr 1fr;gap:40px;}
+  .col-3{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;}
+  .divider-seg{height:1px;background:#000;margin:16px 0 20px;}
+  .box{background:#f4f4f4;padding:32px;display:flex;flex-direction:column;gap:12px;min-height:200px;}
+  .box .num{font-size:20px;color:#0f62fe;font-family:var(--cds-font-mono);}
+  .box h4{margin:0;font-size:28px;font-weight:300;line-height:33.6px;}
+  .box p{margin:0;font-size:20px;line-height:24px;color:#525252;}
+  .data-stat{display:flex;flex-direction:column;gap:16px;}
+  .data-stat .n{font-size:168px;line-height:151.2px;font-weight:200;letter-spacing:-2px;}
+  .data-stat .n sup{font-size:68px;vertical-align:top;margin-left:6px;font-weight:300;}
+  .picto{width:96px;height:96px;}
+  .chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;background:#fff;border:1px solid #161616;font-size:14px;font-family:var(--cds-font-mono);letter-spacing:.32px;}
+  .image-ph{background:linear-gradient(135deg,#dfe3e6 0%,#c1c7cd 100%);display:flex;align-items:center;justify-content:center;color:#697077;font-size:14px;font-family:var(--cds-font-mono);letter-spacing:.32px;}
+  /* Chart */
+  .bar{display:flex;gap:16px;align-items:flex-end;height:420px;padding-bottom:24px;border-bottom:1px solid #000;}
+  .bar .col{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:2px;}
+  .bar .seg{width:100%;}
+  .bar .lbl{font-size:16px;text-align:center;margin-top:8px;color:#525252;}
+  /* Table */
+  table.carbon{width:100%;border-collapse:collapse;font-size:20px;}
+  table.carbon thead tr{border-bottom:1px solid #000;background:#f4f4f4;}
+  table.carbon th{padding:16px;text-align:left;font-weight:600;font-size:20px;}
+  table.carbon td{padding:16px;border-bottom:1px solid #e0e0e0;color:#161616;}
+  /* Contacts */
+  .person{display:flex;flex-direction:column;gap:8px;}
+  .person .avatar{width:160px;height:160px;background:#c1c7cd;margin-bottom:12px;}
+  .person .name{font-size:28px;line-height:33.6px;font-weight:300;}
+  .person .role{font-size:20px;color:#525252;}
+  /* End slide */
+  .end-big{font-size:252px;line-height:226.8px;font-weight:200;letter-spacing:-4px;}
+  .end-big em{font-family:var(--cds-font-serif);font-style:italic;font-weight:300;}
+  a.inline{color:#0f62fe;text-decoration:none;border-bottom:1px solid #0f62fe;}
+  .kicker{font-family:var(--cds-font-mono);font-size:16px;color:#0f62fe;letter-spacing:.32px;text-transform:uppercase;margin-bottom:24px;}
+</style>
+</head>
+<body>
+
+<deck-stage width="1920" height="1080">
+
+<!-- 1. Cover, cyan -->
+<section>
+  <div class="slide cyan" data-label="Cover, cyan">
+    <div class="header-small"><span>watsonx</span><span class="dash">—</span><span>Enterprise AI platform</span></div>
+    <div style="flex:1;display:flex;align-items:flex-end;">
+      <h1 class="title-xl">Put AI <em class="serif">to work.</em><br/>For real outcomes.</h1>
+    </div>
+    <div class="footer"><span class="ibm-logo">IBM</span><span style="margin-left:16px;">Q2 client briefing · April 2026</span><span class="page">1</span></div>
+  </div>
+</section>
+
+<!-- 2. Cover, imagery, half -->
+<section>
+  <div class="slide" data-label="Cover, imagery half">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;height:100%;">
+      <div style="padding-right:48px;display:flex;flex-direction:column;">
+        <div class="header-small"><span>watsonx.ai</span><span class="dash">—</span><span>Foundation models</span></div>
+        <div style="flex:1;display:flex;align-items:flex-end;">
+          <h1 class="title-l">Tune once.<br/>Deploy <em class="serif">anywhere.</em></h1>
+        </div>
+        <p class="body-20" style="max-width:520px;margin-bottom:48px;">The same Granite model running in your private cloud, on AWS, and on-prem — governed by one policy set.</p>
+      </div>
+      <div class="image-ph" style="margin:-64px -80px -64px 0;">[ 1350 × 1080 · product hero ]</div>
+    </div>
+    <div class="footer" style="width:calc(50% - 128px);"><span class="ibm-logo">IBM</span><span class="page">2</span></div>
+  </div>
+</section>
+
+<!-- 3. Contents -->
+<section>
+  <div class="slide" data-label="Contents">
+    <div class="eyebrow">watsonx briefing<span class="dash">—</span>Contents</div>
+    <div style="margin-top:80px;display:grid;grid-template-columns:repeat(2,1fr);column-gap:64px;row-gap:0;">
+      <div>
+        <div style="display:flex;padding:20px 0;border-bottom:1px solid #000;"><span class="num" style="width:72px;">01</span><span class="h-28">Where AI is today</span></div>
+        <div style="display:flex;padding:20px 0;border-bottom:1px solid #000;"><span class="num" style="width:72px;">02</span><span class="h-28">The watsonx platform</span></div>
+        <div style="display:flex;padding:20px 0;border-bottom:1px solid #000;"><span class="num" style="width:72px;">03</span><span class="h-28">Granite foundation models</span></div>
+      </div>
+      <div>
+        <div style="display:flex;padding:20px 0;border-bottom:1px solid #000;"><span class="num" style="width:72px;">04</span><span class="h-28">Governance and risk</span></div>
+        <div style="display:flex;padding:20px 0;border-bottom:1px solid #000;"><span class="num" style="width:72px;">05</span><span class="h-28">Three client stories</span></div>
+        <div style="display:flex;padding:20px 0;border-bottom:1px solid #000;"><span class="num" style="width:72px;">06</span><span class="h-28">What happens next</span></div>
+      </div>
+    </div>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">3</span></div>
+  </div>
+</section>
+
+<!-- 4. Section divider -->
+<section>
+  <div class="slide cyan" data-label="Section divider">
+    <div class="eyebrow">Section 01<span class="dash">—</span></div>
+    <div style="flex:1;display:flex;align-items:flex-end;">
+      <h2 class="title-l">Where AI <em class="serif">actually lives</em><br/>inside the enterprise today.</h2>
+    </div>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">4</span></div>
+  </div>
+</section>
+
+<!-- 5. Large text / quote -->
+<section>
+  <div class="slide" data-label="Large text">
+    <div class="eyebrow">Market context<span class="dash">—</span>Point of view</div>
+    <div style="flex:1;display:flex;align-items:center;">
+      <p class="title-m" style="max-width:1500px;">Most enterprise AI never makes it <em class="serif">past the pilot.</em> The bottleneck is not models — it's data, governance, and the last mile of deployment.</p>
+    </div>
+    <p class="meta" style="margin-bottom:24px;">Source: IBM Institute for Business Value, <em>CEO Study 2025</em>.</p>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">5</span></div>
+  </div>
+</section>
+
+<!-- 6. Data, 3 callouts horizontal -->
+<section>
+  <div class="slide" data-label="Data, 3 callouts">
+    <div class="eyebrow">Section 01<span class="dash">—</span>Why now</div>
+    <h3 class="title-s" style="max-width:1200px;margin-top:24px;">The cost of running AI outside a platform is now measurable.</h3>
+    <div style="flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:48px;margin-top:48px;">
+      <div class="data-stat">
+        <div class="n">54<sup>%</sup></div>
+        <div class="rule"></div>
+        <p class="body-20">of enterprise AI pilots stall at the proof-of-concept stage.</p>
+      </div>
+      <div class="data-stat">
+        <div class="n">3.5<sup>×</sup></div>
+        <div class="rule"></div>
+        <p class="body-20">average cost multiplier when models cross data, cloud and compliance boundaries.</p>
+      </div>
+      <div class="data-stat">
+        <div class="n">14<sup>mo</sup></div>
+        <div class="rule"></div>
+        <p class="body-20">median time from first prototype to a governed production deployment.</p>
+      </div>
+    </div>
+    <p class="meta" style="margin-bottom:24px;">Source: Gartner AI TRiSM survey, 2025 · IBM IBV analysis.</p>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">6</span></div>
+  </div>
+</section>
+
+<!-- 7. Callout, headline -->
+<section>
+  <div class="slide gray" data-label="Callout headline">
+    <div class="eyebrow">Section 02<span class="dash">—</span>The platform</div>
+    <div style="flex:1;display:grid;grid-template-columns:2fr 3fr;gap:64px;align-items:center;">
+      <div>
+        <div class="kicker">WATSONX</div>
+        <h2 class="title-m">Three products.<br/>One governance layer.</h2>
+      </div>
+      <div>
+        <p class="body-20" style="font-size:28px;line-height:33.6px;max-width:780px;">
+          watsonx is how IBM packages the work of building, running and governing AI. Teams pick the products they need; everything plugs into the same identity, lineage and policy system.
+        </p>
+        <div style="margin-top:48px;" class="rule"></div>
+        <p class="meta" style="margin-top:16px;">Delivered as SaaS on IBM Cloud, AWS and Azure, or deployable on Red Hat OpenShift on-prem.</p>
+      </div>
+    </div>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">7</span></div>
+  </div>
+</section>
+
+<!-- 8. Boxes, 4 horizontal, small title -->
+<section>
+  <div class="slide" data-label="Boxes 4 horizontal">
+    <div class="eyebrow">Section 02<span class="dash">—</span>Platform components</div>
+    <h3 class="title-s" style="margin-top:24px;max-width:1400px;">What's in the platform.</h3>
+    <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:2px;background:#e0e0e0;margin-top:48px;">
+      <div class="box"><span class="num">01</span><h4>watsonx.ai</h4><p>Studio for data scientists. Prompt Lab, Tuning Studio, model library.</p></div>
+      <div class="box"><span class="num">02</span><h4>watsonx.data</h4><p>Open lakehouse. Query across clouds without moving data.</p></div>
+      <div class="box"><span class="num">03</span><h4>watsonx.governance</h4><p>Bias detection, lineage, and regulatory documentation.</p></div>
+      <div class="box"><span class="num">04</span><h4>watsonx Assistants</h4><p>Pre-built agents for HR, customer service, and code.</p></div>
+    </div>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">8</span></div>
+  </div>
+</section>
+
+<!-- 9. Text 4 columns with dividers -->
+<section>
+  <div class="slide" data-label="Text 4 columns dividers">
+    <div class="eyebrow">Section 03<span class="dash">—</span>Granite foundation models</div>
+    <h3 class="title-s" style="margin-top:24px;">The Granite family, at a glance.</h3>
+    <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:40px;margin-top:64px;">
+      <div>
+        <div class="divider-seg"></div>
+        <div class="h-28">Granite 3<br/>Instruct</div>
+        <ul class="dashes" style="margin-top:16px;">
+          <li>2B, 8B parameter variants</li>
+          <li>Tuned for chat and summarization</li>
+          <li>Apache 2.0 open weights</li>
+        </ul>
+      </div>
+      <div>
+        <div class="divider-seg"></div>
+        <div class="h-28">Granite<br/>Code</div>
+        <ul class="dashes" style="margin-top:16px;">
+          <li>3B to 34B parameters</li>
+          <li>116 programming languages</li>
+          <li>Ships with watsonx Code Assistant</li>
+        </ul>
+      </div>
+      <div>
+        <div class="divider-seg"></div>
+        <div class="h-28">Granite<br/>Time Series</div>
+        <ul class="dashes" style="margin-top:16px;">
+          <li>TinyTimeMixer family</li>
+          <li>Zero-shot forecasting</li>
+          <li>Sub-1M parameter variants</li>
+        </ul>
+      </div>
+      <div>
+        <div class="divider-seg"></div>
+        <div class="h-28">Slate<br/>Embeddings</div>
+        <ul class="dashes" style="margin-top:16px;">
+          <li>125M retrieval model</li>
+          <li>Multilingual, 12 languages</li>
+          <li>Optimized for RAG</li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">9</span></div>
+  </div>
+</section>
+
+<!-- 10. Chart -->
+<section>
+  <div class="slide" data-label="Chart">
+    <div class="eyebrow">Section 03<span class="dash">—</span>Granite benchmarks</div>
+    <h3 class="title-s" style="margin-top:24px;max-width:1400px;">Granite 3 8B matches or beats peers of its size on instruction-following tasks.</h3>
+    <div style="flex:1;display:grid;grid-template-columns:3fr 1fr;gap:48px;margin-top:40px;">
+      <div class="bar">
+        <div class="col"><div class="seg" style="height:72%;background:#0f62fe;"></div><div class="lbl">granite-3-8b</div></div>
+        <div class="col"><div class="seg" style="height:70%;background:#8a3ffc;"></div><div class="lbl">llama-3-8b</div></div>
+        <div class="col"><div class="seg" style="height:58%;background:#007d79;"></div><div class="lbl">mistral-7b</div></div>
+        <div class="col"><div class="seg" style="height:62%;background:#ff7eb6;"></div><div class="lbl">qwen-2-7b</div></div>
+        <div class="col"><div class="seg" style="height:48%;background:#fa4d56;"></div><div class="lbl">gemma-2-9b</div></div>
+      </div>
+      <div style="padding-top:16px;">
+        <div class="h-24" style="margin-bottom:16px;">Composite score</div>
+        <ul class="dashes">
+          <li>IFEval · 0.57</li>
+          <li>MT-Bench · 7.8</li>
+          <li>GSM8K · 68.5</li>
+          <li>HumanEval · 52.4</li>
+        </ul>
+      </div>
+    </div>
+    <p class="meta" style="margin-bottom:24px;">Source: IBM Research, Granite 3 technical report, October 2025. Higher is better.</p>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">10</span></div>
+  </div>
+</section>
+
+<!-- 11. Table -->
+<section>
+  <div class="slide" data-label="Table">
+    <div class="eyebrow">Section 04<span class="dash">—</span>Governance</div>
+    <h3 class="title-s" style="margin-top:24px;">Regulatory frameworks watsonx.governance maps to.</h3>
+    <div style="margin-top:48px;flex:1;">
+      <table class="carbon">
+        <thead>
+          <tr><th>Framework</th><th>Scope</th><th>Status</th><th>Auto-generated documentation</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>EU AI Act</td><td>EU-wide, risk-tiered</td><td><span class="chip">In force · Aug 2026</span></td><td>Model cards, DPIA, risk register</td></tr>
+          <tr><td>NIST AI RMF 1.0</td><td>US federal, voluntary</td><td><span class="chip">Production</span></td><td>Govern / Map / Measure / Manage</td></tr>
+          <tr><td>ISO/IEC 42001</td><td>AI management systems</td><td><span class="chip">Production</span></td><td>Control mapping, audit evidence</td></tr>
+          <tr><td>SR 11-7 / Model Risk</td><td>US banking</td><td><span class="chip">Production</span></td><td>Validation reports, challenger logs</td></tr>
+          <tr><td>Colorado AI Act (SB 205)</td><td>US, high-risk AI</td><td><span class="chip">In force · Feb 2026</span></td><td>Impact assessments, notice templates</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="meta" style="margin-bottom:24px;">Source: watsonx.governance release notes, Q1 2026. Contact your IBM rep for the complete list.</p>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">11</span></div>
+  </div>
+</section>
+
+<!-- 12. Contacts -->
+<section>
+  <div class="slide" data-label="Contacts">
+    <div class="eyebrow">Next steps<span class="dash">—</span>Your team</div>
+    <h3 class="title-s" style="margin-top:24px;">Who to call.</h3>
+    <div style="flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:40px;margin-top:64px;">
+      <div class="person"><div class="avatar"></div><div class="name">Priya Natarajan</div><div class="role">Client partner<br/>priya.natarajan@ibm.com</div></div>
+      <div class="person"><div class="avatar"></div><div class="name">Marcus Johansson</div><div class="role">Senior solutions architect<br/>m.johansson@ibm.com</div></div>
+      <div class="person"><div class="avatar"></div><div class="name">Leilani Okafor</div><div class="role">watsonx specialist<br/>l.okafor@ibm.com</div></div>
+      <div class="person"><div class="avatar"></div><div class="name">Yuki Tanaka</div><div class="role">Governance advisor<br/>y.tanaka@ibm.com</div></div>
+    </div>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">12</span></div>
+  </div>
+</section>
+
+<!-- 13. Legal -->
+<section>
+  <div class="slide" data-label="Legal disclaimer">
+    <div class="eyebrow">Legal<span class="dash">—</span>External presentation, non-sales</div>
+    <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:64px;margin-top:48px;">
+      <div class="meta" style="font-size:18px;line-height:26px;">
+        <p><strong>© Copyright IBM Corporation 2026.</strong></p>
+        <p>IBM and the IBM logo are trademarks of IBM Corporation, registered in many jurisdictions worldwide. Other product and service names might be trademarks of IBM or other companies. A current list of IBM trademarks is available at <a href="#" class="inline">ibm.com/legal/copytrade</a>.</p>
+        <p>This document is current as of the initial date of publication and may be changed by IBM at any time.</p>
+      </div>
+      <div class="meta" style="font-size:18px;line-height:26px;">
+        <p>THE INFORMATION IN THIS DOCUMENT IS PROVIDED "AS IS" WITHOUT ANY WARRANTY, EXPRESS OR IMPLIED, INCLUDING WITHOUT ANY WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND ANY WARRANTY OR CONDITION OF NON-INFRINGEMENT.</p>
+        <p>Examples presented as illustrative only. Actual results will vary based on client configurations and conditions.</p>
+        <p>Not all offerings are available in every country in which IBM operates.</p>
+      </div>
+    </div>
+    <div class="footer"><span class="ibm-logo">IBM</span><span class="page">13</span></div>
+  </div>
+</section>
+
+<!-- 14. End slide -->
+<section>
+  <div class="slide black" data-label="End slide">
+    <div style="flex:1;display:flex;align-items:center;">
+      <h1 class="end-big">Thank <em>you.</em></h1>
+    </div>
+    <div class="rule-w"></div>
+    <div style="display:flex;margin-top:24px;">
+      <span class="body-20" style="color:#c6c6c6;">IBM watsonx · April 2026</span>
+      <span class="ibm-logo" style="margin-left:auto;">IBM</span>
+    </div>
+  </div>
+</section>
+
+</deck-stage>
+
+<script src="deck-stage.js"></script>
+</body>
+</html>

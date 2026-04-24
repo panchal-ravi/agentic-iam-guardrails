@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tags & notifications</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#fff;font-family:var(--cds-font-sans);color:#161616;}
+  .card{padding:20px 24px;display:flex;flex-direction:column;gap:18px;}
+  .group{display:flex;flex-wrap:wrap;gap:8px;}
+  .tag{height:24px;padding:0 8px;display:inline-flex;align-items:center;font-size:12px;letter-spacing:.32px;border-radius:16px;}
+  .t-red{background:#ffd7d9;color:#750e13;}
+  .t-blue{background:#d0e2ff;color:#002d9c;}
+  .t-green{background:#a7f0ba;color:#044317;}
+  .t-purple{background:#e8daff;color:#491d8b;}
+  .t-gray{background:#e0e0e0;color:#393939;}
+  .t-teal{background:#9ef0f0;color:#005d5d;}
+  .t-magenta{background:#ffd6e8;color:#740937;}
+  .notif{display:flex;gap:12px;padding:14px 16px;border-left:3px solid;background:#f4f4f4;font-size:14px;}
+  .n-err{border-color:#da1e28;background:#fff1f1;}
+  .n-warn{border-color:#f1c21b;background:#fcf4d6;}
+  .n-ok{border-color:#24a148;background:#defbe6;}
+  .n-info{border-color:#0043ce;background:#edf5ff;}
+  .notif strong{font-weight:600;margin-right:6px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="group">
+    <span class="tag t-red">Red</span>
+    <span class="tag t-blue">Blue</span>
+    <span class="tag t-green">Green</span>
+    <span class="tag t-purple">Purple</span>
+    <span class="tag t-gray">Gray</span>
+    <span class="tag t-teal">Teal</span>
+    <span class="tag t-magenta">Magenta</span>
+  </div>
+  <div class="notif n-err"><div><strong>Error.</strong>Your API key is invalid.</div></div>
+  <div class="notif n-warn"><div><strong>Warning.</strong>Usage is at 85% of your monthly quota.</div></div>
+  <div class="notif n-ok"><div><strong>Success.</strong>Resource group created.</div></div>
+  <div class="notif n-info"><div><strong>Info.</strong>A new version of Carbon is available.</div></div>
+</div>
+</body>
+</html>

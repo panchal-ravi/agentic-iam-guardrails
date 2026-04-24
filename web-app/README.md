@@ -1,515 +1,145 @@
-# IBM watsonx — Verify Vault Demo
+# web-app
 
-A proof-of-concept Streamlit web application styled after the [IBM watsonx](https://www.ibm.com/products/watsonx) product site. It demonstrates:
+A Next.js (App Router) rebuild of the original Streamlit app (archived at `../web-app-deprecated/`), styled with the IBM Carbon Design System per the `specs/design/` handoff. Identical functionality — IBM Verify OAuth login, AI agent chat with streaming, token-context inspector (subject / actor / OBO), theme toggle, logout — wired through the same `.env` contract.
 
-1. **Login with IBM Verify** — OAuth 2.0 Authorization Code Flow with PKCE-ready state validation and JWT signature verification
-2. **AI Agent Chat** — Conversational interface that invokes a remote AI agent via REST API
+## Stack
 
----
+- **Next.js 15** (App Router) + **React 19** + **TypeScript**
+- **@carbon/react**, **@carbon/styles** (IBM Carbon v11 tokens, IBM Plex via `next/font`)
+- **jose** for JWKS-backed id_token verification
+- **iron-session** for HttpOnly + sealed cookies (state, PKCE verifier, session)
+- **pino** for structured JSON logs (same field shape as the Streamlit app's `observability.py`)
+- **zod** for env + request body validation
+- **Vitest** unit tests, **Playwright** E2E (optional)
 
-## Table of Contents
+## Prerequisites
 
-- [Architecture](#architecture)
-- [Prerequisites](#prerequisites)
-- [Setup](#setup)
-- [Environment Variables](#environment-variables)
-- [Running Locally](#running-locally)
-- [Docker](#docker)
-- [Kubernetes Base Deployment](#kubernetes-base-deployment)
-- [OAuth 2.0 Flow](#oauth-20-flow)
-- [AI Agent Integration](#ai-agent-integration)
-- [Observability](#observability)
-- [Design System](#design-system)
-- [Security Considerations](#security-considerations)
-- [Dependencies](#dependencies)
+- Node.js **20.18+** (`.nvmrc` provided)
+- An IBM Verify tenant with an OAuth 2.0 application
+- (Optional) An AI agent backend exposing `/v1/agent/query` and `/v1/agent/tokens`
 
----
+## Setup
+
+```bash
+cd web-app
+cp .env.example .env
+# fill in IBM_VERIFY_*, AI_AGENT_API_URL, generate SESSION_PASSWORD:
+openssl rand -base64 32  # paste into SESSION_PASSWORD
+
+npm install
+npm run dev
+```
+
+App runs at <http://localhost:8501>.
+
+> **IBM Verify config:** add `http://localhost:8501/api/auth/callback` (and your production equivalent) to the application's allowed redirect URIs. The new app's OAuth callback path is `/api/auth/callback`, not `/`.
+
+## Environment variables
+
+| Variable | Required | Default | Purpose |
+|---|---|---|---|
+| `IBM_VERIFY_CLIENT_ID` | yes | — | OAuth client ID |
+| `IBM_VERIFY_CLIENT_SECRET` | yes | — | OAuth client secret |
+| `IBM_VERIFY_TENANT_URL` | yes | — | e.g. `https://your-tenant.verify.ibm.com` |
+| `IBM_VERIFY_REDIRECT_URI` | yes | — | e.g. `http://localhost:8501/api/auth/callback` |
+| `IBM_VERIFY_SCOPES` | no | `openid profile email Agent.Invoke` | OIDC scopes |
+| `AI_AGENT_API_URL` | no | `""` | base URL for the agent backend |
+| `LOG_LEVEL` | no | `info` | pino log level |
+| `LOG_SERVICE_NAME` | no | `verify-vault-web-app` | `service` field in logs |
+| `LOG_ENVIRONMENT` | no | `development` | `environment` field in logs |
+| `SESSION_PASSWORD` | yes | — | 32+ random chars; seals all auth cookies |
+
+## Scripts
+
+```bash
+npm run dev         # next dev on port 8501
+npm run build       # production build (output: standalone)
+npm run start       # next start on port 8501
+npm run lint        # eslint
+npm run typecheck   # tsc --noEmit
+npm run test        # vitest run
+npm run test:e2e    # playwright
+npm run format      # prettier write
+```
 
 ## Architecture
 
 ```
-web/
-├── app.py                  # Entrypoint: theme injection, OAuth callback, routing
-├── pages/
-│   ├── landing.py          # Post-login landing page
-│   └── chat.py             # AI Agent chat page (auth-gated)
-├── auth/
-│   ├── oauth.py            # IBM Verify OAuth 2.0 Authorization Code Flow
-│   └── session.py          # Session helpers & require_auth() page guard
-├── components/
-│   ├── login_page.py       # Login hero UI
-│   ├── chat_ui.py          # Chat interface
-│   └── navbar.py           # Top nav bar (theme toggle, Access Token viewer, Logout)
-├── services/
-│   └── agent_api.py        # Remote AI agent HTTP client
-└── styles/
-    └── theme.css           # Global CSS injected via st.markdown
+Browser ──► /                       Login page (server component)
+       └─► /api/auth/login          PKCE + state in HttpOnly cookies, 302 to IBM Verify
+              └─► IBM Verify        user authenticates
+                     └─► /api/auth/callback   verify state+PKCE, exchange code, verify id_token,
+                                             set sealed session cookie, 302 to /landing
+       ──► /landing                 Header + ChatWorkspace (server component, auth-gated)
+       ──► POST /api/agent/query    streaming proxy → AI_AGENT_API_URL/v1/agent/query
+       ──► GET  /api/agent/tokens   proxy → AI_AGENT_API_URL/v1/agent/tokens
+       ──► GET  /api/auth/claims    decoded id_token (Subject token panel)
+       ──► GET  /api/auth/me        minimal user info for header
+       ──► GET  /api/auth/logout    clear cookies → IBM Verify end_session
 ```
 
-### Request Flow
+`access_token`, `id_token`, and `client_secret` never reach the browser. The chat client posts `{message, history}` to `/api/agent/query`; the route handler attaches the Bearer token from the sealed cookie before talking to the agent.
 
-```
-Browser
-  │
-  ├─[GET /] ──────────────────► app.py
-  │                                │
-  │                          Has ?code= param?
-  │                          ┌─── Yes ──► Exchange code for token (auth/oauth.py)
-  │                          │            Validate id_token via JWKS
-  │                          │            Store in st.session_state
-  │                          │            Redirect → pages/landing.py
-  │                          │
-  │                          └─── No ───► Already authenticated?
-  │                                       ├─ Yes ──► Redirect → pages/landing.py
-  │                                       └─ No  ──► Render login page
-  │
-  ├─[GET /chat] ──────────────► pages/chat.py
-  │                                │
-  │                          require_auth() → check session
-  │                          │
-  │                          User sends message
-  │                                │
-  │                          services/agent_api.py ──► Remote AI Agent API
-  │                                                         │
-  │◄──────────────────────────────────────────────── Response
-```
+## Authentication & token flow
 
----
+1. User clicks **Login with IBM Verify**.
+2. `/api/auth/login` generates `state` and a PKCE code verifier, stores both in HttpOnly cookies scoped to `/api/auth/callback`, and redirects to `${TENANT_URL}/oidc/endpoint/default/authorize` with `code_challenge=S256` and `prompt=login`.
+3. IBM Verify authenticates the user and redirects to `/api/auth/callback?code=…&state=…`.
+4. The callback validates `state` (constant-time compare), exchanges the code for tokens (POSTs `client_secret` + `code_verifier` form-encoded), and verifies the `id_token` against the JWKS at `${TENANT_URL}/oidc/endpoint/default/jwks` (RS256, audience = client_id, exp).
+5. Tokens + decoded id-token claims + extracted user info are written to a single sealed `verify_session` cookie (HttpOnly, Secure in prod, SameSite=Lax). Expires at the id_token's `exp` (capped at 8h).
+6. **Logout** redirects to `${TENANT_URL}/oidc/endpoint/default/logout?post_logout_redirect_uri=…&id_token_hint=…` after clearing local cookies.
 
-## Prerequisites
+## AI agent integration
 
-- Python 3.10+
-- An [IBM Security Verify](https://www.ibm.com/products/verify-identity) tenant with an OAuth 2.0 application configured
-- A running AI agent endpoint (or a mock server for local testing)
-
----
-
-## Setup
-
-### 1. Clone and navigate to the web directory
-
-```bash
-git clone <repo-url>
-cd verify-vault-demo/web
-```
-
-### 2. Create a virtual environment (recommended)
-
-```bash
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configure environment variables
-
-```bash
-cp .env.example .env
-# Edit .env and fill in all values — see Environment Variables below
-```
-
----
-
-## Environment Variables
-
-| Variable | Required | Description |
-|---|---|---|
-| `IBM_VERIFY_CLIENT_ID` | ✅ | OAuth 2.0 client ID from IBM Verify |
-| `IBM_VERIFY_CLIENT_SECRET` | ✅ | OAuth 2.0 client secret (never expose client-side) |
-| `IBM_VERIFY_TENANT_URL` | ✅ | e.g. `https://your-tenant.verify.ibm.com` |
-| `IBM_VERIFY_REDIRECT_URI` | ✅ | Must match IBM Verify app config, e.g. `http://localhost:8501/` |
-| `AI_AGENT_API_URL` | ✅ | Remote agent base URL, e.g. `https://your-agent-host` (requests go to `/v1/agent/query`) |
-| `LOG_LEVEL` | Optional | Python log level for app and framework logs; defaults to `INFO` |
-| `LOG_SERVICE_NAME` | Optional | Service name emitted in structured logs; defaults to `verify-vault-web-app` |
-| `LOG_ENVIRONMENT` | Optional | Environment field emitted in structured logs; defaults to `development` |
-
-### IBM Verify Application Configuration
-
-In your IBM Verify tenant:
-1. Create a new **Native / Single-Page Application** (or Web application)
-2. Set the **Redirect URI** to `http://localhost:8501/` (for local dev)
-3. Enable scopes: `openid`, `profile`, `email`
-4. Copy the **Client ID** and **Client Secret** to your `.env`
-
----
-
-## Running Locally
-
-```bash
-streamlit run app.py --server.port 8501
-```
-
-The app will be available at [http://localhost:8501](http://localhost:8501).
-
----
-
-## Docker
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) 24+
-- [Docker Buildx](https://docs.docker.com/buildx/working-with-buildx/) (included with Docker Desktop; enable on Linux with `docker buildx install`)
-
-### Build for a single platform (local)
-
-```bash
-docker build -t agentguard-web-app .
-```
-
-### Multi-arch build (linux/amd64 + linux/arm64)
-
-Multi-arch images require a `buildx` builder that supports multiple platforms. Create one if you don't already have one:
-
-```bash
-docker buildx create --name multiarch --driver docker-container --use
-docker buildx inspect --bootstrap
-```
-
-Build and push to a registry in one step:
-
-```bash
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t <registry>/agentguard-web-app:<tag> \
-  --push \
-  .
-```
-
-To build locally without pushing (useful for testing):
-
-```bash
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t agentguard-web-app:latest \
-  --load \
-  .
-```
-
-> **Note:** `--load` only supports a single platform at a time. Use `--push` to produce a true multi-arch manifest in a registry.
-
-### Run the container
-
-Pass environment variables via a file or individual `-e` flags:
-
-```bash
-docker run --rm -p 8501:8501 \
-  --env-file .env \
-  agentguard-web-app:latest
-```
-
-The app will be available at [http://localhost:8501](http://localhost:8501).
-
-> **IBM Verify redirect URI:** When running in Docker, ensure `IBM_VERIFY_REDIRECT_URI` in your `.env` matches the URL you use to access the container (e.g. `http://localhost:8501/`).
-
----
-
-## Kubernetes Base Deployment
-
-Use a Kubernetes `Secret` to carry the application `.env` and mount it into the container as `/app/.env`. This matches the container `WORKDIR` and allows `python-dotenv` to load the file at startup without baking secrets into the image.
-
-### 1. Create the Secret from `.env`
-
-```bash
-kubectl create namespace agentguard-web-app
-
-kubectl -n agentguard-web-app create secret generic agentguard-web-app-env \
-  --from-file=.env=.env
-```
-
-### 2. Create a ServiceAccount for Consul-enabled deployments
-
-When deploying through Consul-integrated platform components, the workload needs a Kubernetes `ServiceAccount`. Create it first and reference it from the deployment:
-
-```yaml
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: agentguard-web-app
-  namespace: agentguard-web-app
-```
-
-### 3. Deploy the application
-
-This base deployment mounts the secret as a file and binds the pod to the service account created above:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: agentguard-web-app
-  namespace: agentguard-web-app
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: agentguard-web-app
-  template:
-    metadata:
-      labels:
-        app: agentguard-web-app
-    spec:
-      serviceAccountName: agentguard-web-app
-      containers:
-        - name: agentguard-web-app
-          image: <registry>/<image>:<tag>
-          ports:
-            - containerPort: 8501
-          volumeMounts:
-            - name: app-env
-              mountPath: /app/.env
-              subPath: .env
-              readOnly: true
-      volumes:
-        - name: app-env
-          secret:
-            secretName: agentguard-web-app-env
-            items:
-              - key: .env
-                path: .env
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: agentguard-web-app
-  namespace: agentguard-web-app
-spec:
-  selector:
-    app: agentguard-web-app
-  ports:
-    - name: http
-      port: 8501
-      targetPort: 8501
-```
-
-If your deployment platform uses a higher-level base deployment spec with `volumeMapping`, configure the same secret-backed file mount there:
-
-```yaml
-serviceAccountName: agentguard-web-app
-volumes:
-  - name: app-env
-    secret:
-      secretName: agentguard-web-app-env
-      items:
-        - key: .env
-          path: .env
-volumeMapping:
-  - name: app-env
-    mountPath: /app/.env
-    subPath: .env
-    readOnly: true
-```
-
-Save the `ServiceAccount` plus the `Deployment` and `Service` manifests to `agentguard-web-app-k8s.yaml`, then apply them:
-
-```bash
-kubectl apply -f agentguard-web-app-k8s.yaml
-```
-
-> **Redirect URI reminder:** Set `IBM_VERIFY_REDIRECT_URI` in the mounted `.env` to the externally reachable URL for your Kubernetes deployment.
-
----
-
-## OAuth 2.0 Flow
-
-This app implements the **Authorization Code Flow** as defined in [RFC 6749](https://datatracker.ietf.org/doc/html/rfc6749).
-
-```
-Step 1  User clicks "Login with IBM Verify"
-        → App builds authorization URL with:
-          response_type=code, client_id, redirect_uri, scope=openid profile email
-          state=<random CSRF token stored in session>
-
-Step 2  IBM Verify authenticates the user and redirects back:
-        http://localhost:8501/?code=<auth_code>&state=<state>
-
-Step 3  app.py detects ?code= in query params
-        → Validates state parameter (CSRF check)
-        → POST to /oidc/endpoint/default/token with:
-          grant_type=authorization_code, code, redirect_uri, client_id, client_secret
-
-Step 4  IBM Verify responds with:
-        { access_token, id_token, token_type, expires_in, ... }
-
-Step 5  App validates id_token JWT signature using JWKS endpoint
-        Decodes claims: sub, name, email, exp, iat, ...
-        Stores in st.session_state: access_token, id_token, user_info
-
-Step 6  Redirects to pages/landing.py (authenticated session)
-```
-
-### IBM Verify OIDC Endpoints
-
-| Purpose | URL |
-|---|---|
-| Authorization | `{IBM_VERIFY_TENANT_URL}/oidc/endpoint/default/authorize` |
-| Token exchange | `{IBM_VERIFY_TENANT_URL}/oidc/endpoint/default/token` |
-| User info | `{IBM_VERIFY_TENANT_URL}/oidc/endpoint/default/userinfo` |
-| JWKS (key verification) | `{IBM_VERIFY_TENANT_URL}/oidc/endpoint/default/jwks` |
-
-### Viewing the Access Token
-
-The navbar includes a **🔑 Access Token** button. Clicking it shows a popover with:
-- **Raw Encoded Token** — the full JWT string as issued by IBM Verify
-- **Decoded Payload** — the JWT claims as pretty-printed JSON (header and signature are not shown)
-
----
-
-## AI Agent Integration
-
-Agent calls are handled by `services/agent_api.py`:
-
-```python
-invoke_agent(message: str, conversation_history: list, access_token: str) -> dict
-```
-
-**Endpoint:** `POST /v1/agent/query`
-
-**Request payload:**
-```json
-{
-  "messages": [
-    {"role": "user", "content": "User message text"}
-  ],
-  "stream": true
-}
-```
-
-**Authentication:** The user's IBM Verify `access_token` is forwarded as the HTTP header `Authorization: Bearer <access_token>`.
-
-**Response format:** The preferred mode is a streamed `text/plain` response, rendered progressively in the chat UI. The client also accepts non-streaming JSON fallbacks where the reply is returned under `response`, `response_text`, `result`, or `message`.
-
-The function returns a dict with:
-- `response` — the agent's reply text, displayed in the chat bubble
-- `obo_token` — a delegated On-Behalf-Of JWT (RFC 8693) issued by the agent; displayed in a collapsible **🔗 OBO Token** expander beneath the reply when present
-
-Conversation history is stored in `st.session_state.messages` as a list of `{"role", "content"}` dicts (only the `response` text is stored, not the OBO token) and sent with every request for multi-turn context.
-
-### On-Behalf-Of Token (RFC 8693)
-
-When the AI agent performs downstream calls on behalf of the authenticated user, it returns an `obo_token` — a delegated JWT scoped to the agent. The chat page surfaces this token in a collapsible expander under each agent response so users and developers can inspect it. Only the current turn's token is shown; tokens are not persisted in conversation history.
-
----
+- Server proxy. Browser → `/api/agent/query` (streaming `text/plain`) → server → `AI_AGENT_API_URL/v1/agent/query` with Bearer `access_token` and `X-Request-ID`.
+- Streaming uses Web `ReadableStream`. Both `application/json` (single yield) and `text/plain` (incremental, escape-buffered) responses are normalized exactly like the Streamlit app's `services/response_normalization.py`.
+- Token panel calls `GET /api/agent/tokens` after each successful send to pull `actor_token` and `obo_token`; nested payloads under `data|result|response|payload|body` are unwrapped.
 
 ## Observability
 
-Application logs and Streamlit/framework logs are emitted as single-line JSON so they can be shipped directly to Loki or another log aggregator.
+- All logs are JSON, one per line, written to stdout via `pino`.
+- Field shape matches `web-app/observability.py`: `timestamp`, `service`, `environment`, `host`, `hostname`, `host_ip`, `request_id`, `client_ip`, `request_path`, `message`, `level`, `severity`, `logger`, `module`, `process`, `process_name`, `thread`, `thread_name`.
+- Request context is propagated via Node's `AsyncLocalStorage`. The wrapper `withRequestContext()` on every route handler binds `request_id` (from `X-Request-ID` header or generated UUID), `client_ip`, `request_path`, and `preferred_username` (from session cookie). Outbound calls re-emit the request id via `buildOutboundHeaders()`.
+- A pino mixin redacts sensitive keys (`access_token`, `id_token`, `client_secret`, `code`, `code_verifier`, `authorization`, `cookie`, `set-cookie`) from any logged object.
 
-### Structured log fields
+## Security posture
 
-- `timestamp`
-- `service`
-- `environment`
-- `level` / `severity`
-- `logger`
-- `module`
-- `method` / `function`
-- `line`
-- `host` / `hostname`
-- `host_ip`
-- `process`, `process_name`
-- `thread`, `thread_name`
-- `request_id`
-- `client_ip`
-- `request_path`
-- `message`
+- HttpOnly + sealed cookies (iron-session, AES-GCM) for all auth state. State and PKCE cookies are scoped to `/api/auth/callback`.
+- PKCE S256 + state on every OAuth flow.
+- Same-origin guard on `POST /api/agent/*` via middleware.
+- HTTP headers in `next.config.mjs`: HSTS (prod), CSP (`default-src 'self'`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin`, restrictive `Permissions-Policy`.
+- zod validates env (fail-fast) and `/api/agent/query` body (`message ≤ 1000 chars`, history ≤ 200 messages).
+- Rate limiting is a deliberate TODO (see `app/api/agent/query/route.ts`). Add an upstream limiter (Upstash / Cloudflare) before production.
 
-Any custom `logging` extras are preserved under `extra`.
+## Docker
 
-### Example log line
-
-```json
-{
-  "timestamp": "2026-04-03T04:31:52.841613+00:00",
-  "service": "verify-vault-web-app",
-  "environment": "development",
-  "host": "verify-vault-7c98f7b9bc-fx8nm",
-  "host_ip": "10.42.1.17",
-  "request_id": "4f2d50d8-3552-4d47-b5d7-d07fca5d4b31",
-  "client_ip": "203.0.113.24",
-  "request_path": "/",
-  "level": "INFO",
-  "logger": "verify_vault.app",
-  "module": "app",
-  "method": "<module>",
-  "line": 35,
-  "message": "Authenticated session detected; redirecting to landing page"
-}
-```
-
-Query parameters are intentionally excluded from `request_path` so OAuth codes and other sensitive values are not written to logs.
-
----
-
-## Design System
-
-The UI follows the [IBM Carbon Design System](https://carbondesignsystem.com/) conventions to match the watsonx brand.
-
-### Colors
-
-| Token | Hex | Usage |
-|---|---|---|
-| `$blue-60` | `#0f62fe` | Primary buttons, links, accents |
-| `$blue-70` | `#0043ce` | Button hover state |
-| `$gray-100` | `#161616` | Page background (dark theme) |
-| `$gray-90` | `#262626` | Card / panel background |
-| `$gray-80` | `#393939` | Borders and dividers |
-| `$white` | `#ffffff` | Primary text on dark |
-| `$gray-30` | `#c6c6c6` | Secondary / muted text |
-| `$green-40` | `#42be65` | Success / online indicator |
-| `$red-50` | `#fa4d56` | Error states |
-
-### Typography
-
-| Role | Font | Weight |
-|---|---|---|
-| Body / UI | IBM Plex Sans | 400, 600 |
-| Code / Monospace | IBM Plex Mono | 400 |
-| Display headings | IBM Plex Sans | 300 (Light) |
-
-### Layout
-
-- **8px base grid** — spacing: 4, 8, 16, 24, 32, 48, 64px
-- **Sharp corners** — `border-radius: 0` throughout
-- **No drop shadows** — use `1px solid #393939` borders for separation
-- **Chat bubbles** — user messages right-aligned (`#0f62fe` bg), AI responses left-aligned (`#262626` bg)
-
----
-
-## Security Considerations
-
-| Concern | Mitigation |
-|---|---|
-| CSRF on OAuth callback | `state` parameter validated on every callback |
-| JWT tampering | `id_token` signature verified via JWKS using `PyJWT` + `cryptography` |
-| Client secret exposure | Stored server-side in `.env` only; never sent to browser |
-| Token logging | Access tokens and user PII are never logged to stdout |
-| Agent API key | Stored in `.env`; rotated regularly in production via a secrets manager |
-| Production deployment | Use a reverse proxy (nginx/Caddy) to set `Secure` + `HttpOnly` cookie flags |
-
----
-
-## Dependencies
-
-```
-streamlit>=1.35.0
-requests>=2.31.0
-python-dotenv>=1.0.0
-PyJWT>=2.8.0
-cryptography>=42.0.0
-```
-
-Install with:
 ```bash
-pip install -r requirements.txt
+# single-arch local
+docker build -t web-app:dev .
+docker run --rm -p 8501:8501 --env-file .env web-app:dev
+
+# multi-arch
+docker buildx build --platform linux/amd64,linux/arm64 \
+  -t <registry>/web-app:<tag> --push .
 ```
 
----
+## Testing
 
-## License
+```bash
+npm run test           # vitest unit tests
+npm run test:e2e       # playwright (boots dev server on 8501)
+```
 
-This project is a proof-of-concept demo. Refer to the repository root for licensing details.
+Unit tests cover: response normalization parity, stream-split escape buffer, PKCE verifier/challenge, OAuth URL building, `extractUserInfo`, JWT decode helper, and outbound request-id propagation.
+
+## Specs
+
+- [`specs/architecture.md`](./specs/architecture.md)
+- [`specs/auth-flow.md`](./specs/auth-flow.md)
+- [`specs/agent-integration.md`](./specs/agent-integration.md)
+- [`specs/observability.md`](./specs/observability.md)
+
+## Notes
+
+- The previous Streamlit implementation is archived at `../web-app-deprecated/` for reference; this Next.js app replaces it.
+- The app does **not** implement refresh tokens (matching the Streamlit app's behavior); users re-log in when the id_token expires.

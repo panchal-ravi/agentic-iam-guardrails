@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Brand — IBM wordmark</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#fff;font-family:var(--cds-font-sans);color:#161616;}
+  .card{padding:0;display:grid;grid-template-columns:1fr 1fr;gap:0;}
+  .cell{padding:28px 32px;display:flex;flex-direction:column;gap:10px;justify-content:center;align-items:flex-start;min-height:200px;}
+  .cell.light{background:#fff;color:#161616;}
+  .cell.dark{background:#161616;color:#f4f4f4;}
+  .cell img{height:48px;}
+  .cell.dark img{filter:invert(1);}
+  .meta{font-family:var(--cds-font-mono);font-size:11px;letter-spacing:.32px;opacity:.75;text-transform:uppercase;}
+  .line{font-size:14px;line-height:20px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="cell light">
+    <img src="../assets/ibm-logo.svg" alt="IBM">
+    <div class="meta">On white</div>
+    <div class="line">IBM 8-bar wordmark · one color, sharp edges, unaltered lockup.</div>
+  </div>
+  <div class="cell dark">
+    <img src="../assets/ibm-logo.svg" alt="IBM">
+    <div class="meta">On Gray 100</div>
+    <div class="line">Reversed only via color flip; never recolored or gradiented.</div>
+  </div>
+</div>
+</body>
+</html>

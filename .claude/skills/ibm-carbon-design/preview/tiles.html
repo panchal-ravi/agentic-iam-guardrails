@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tiles & cards</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#f4f4f4;font-family:var(--cds-font-sans);color:#161616;}
+  .card{padding:20px 24px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:2px;}
+  .tile{background:#fff;padding:16px;min-height:120px;display:flex;flex-direction:column;gap:8px;position:relative;cursor:pointer;}
+  .tile:hover{background:#e8e8e8;}
+  .tile.selected{outline:2px solid #0f62fe;outline-offset:-2px;}
+  .kicker{font-family:var(--cds-font-mono);font-size:11px;color:#6f6f6f;letter-spacing:.32px;text-transform:uppercase;}
+  .title{font-size:16px;font-weight:600;line-height:22px;}
+  .desc{font-size:14px;line-height:20px;color:#525252;}
+  .chev{position:absolute;right:12px;bottom:12px;width:16px;height:16px;background:#161616;mask:url(../assets/icons/arrow--right.svg) center/16px no-repeat;-webkit-mask:url(../assets/icons/arrow--right.svg) center/16px no-repeat;}
+  .pill{display:inline-flex;gap:6px;align-items:center;font-size:12px;background:#d0e2ff;color:#002d9c;padding:2px 8px;border-radius:12px;align-self:flex-start;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="tile"><div class="kicker">Clickable tile</div><div class="title">API endpoints</div><div class="desc">Manage API keys and access policies for this project.</div><div class="chev"></div></div>
+  <div class="tile selected"><div class="kicker">Selected</div><div class="title">Databases</div><div class="desc">4 Postgres, 2 Cloudant, 1 Db2 instance.</div><div class="chev"></div></div>
+  <div class="tile"><div class="kicker">With status</div><div class="title">Storage buckets</div><div class="desc"><span class="pill">12 active</span></div><div class="chev"></div></div>
+</div>
+</body>
+</html>

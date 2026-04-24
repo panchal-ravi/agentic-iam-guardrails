@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Font families</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#fff;color:#161616;}
+  .card{padding:24px 28px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;border-left:1px solid #f4f4f4;}
+  .f{padding:0 24px;border-right:1px solid #f4f4f4;}
+  .f:last-child{border-right:none;}
+  .f h4{margin:0 0 6px 0;font-size:11px;text-transform:uppercase;letter-spacing:.32px;color:#6f6f6f;font-family:var(--cds-font-mono);font-weight:400;}
+  .f .name{font-size:18px;margin-bottom:14px;}
+  .aa{font-size:96px;line-height:1;font-weight:400;letter-spacing:-2px;}
+  .wghts{margin-top:14px;font-size:13px;line-height:20px;}
+  .sans{font-family:var(--cds-font-sans);}
+  .serif{font-family:var(--cds-font-serif);}
+  .mono{font-family:var(--cds-font-mono);}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="f sans"><h4>Sans — UI & body</h4><div class="name">IBM Plex Sans</div><div class="aa">Aa</div>
+    <div class="wghts"><span style="font-weight:300">Light</span> · <span style="font-weight:400">Regular</span> · <span style="font-weight:600">Semibold</span></div>
+  </div>
+  <div class="f mono"><h4>Mono — code & data</h4><div class="name sans">IBM Plex Mono</div><div class="aa">Aa</div>
+    <div class="wghts"><span style="font-weight:400">Regular</span> · <span style="font-weight:500">Medium</span></div>
+  </div>
+  <div class="f serif"><h4>Serif — editorial</h4><div class="name sans">IBM Plex Serif</div><div class="aa">Aa</div>
+    <div class="wghts"><span style="font-weight:400">Regular</span> · <span style="font-weight:600">Semibold</span></div>
+  </div>
+</div>
+</body>
+</html>

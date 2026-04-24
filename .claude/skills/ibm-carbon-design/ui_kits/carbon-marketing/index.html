@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en" data-screen-label="IBM.com Marketing">
+<head>
+<meta charset="utf-8">
+<title>IBM — Marketing</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#fff;color:#161616;font-family:var(--cds-font-sans);}
+  *{box-sizing:border-box;}
+  .nav{height:48px;background:#161616;color:#f4f4f4;display:flex;align-items:center;padding-left:16px;}
+  .nav .logo{font-weight:700;font-size:14px;margin-right:32px;}
+  .nav a{color:#f4f4f4;text-decoration:none;padding:0 16px;font-size:14px;height:48px;display:inline-flex;align-items:center;}
+  .nav a:hover{background:#262626;}
+  .nav .right{margin-left:auto;display:flex;}
+  .hero{padding:96px 64px 64px;max-width:1312px;margin:0 auto;display:grid;grid-template-columns:1.2fr 1fr;gap:64px;}
+  .eyebrow{font-family:var(--cds-font-mono);font-size:14px;color:#0f62fe;letter-spacing:.32px;margin-bottom:16px;}
+  .h1{font-size:54px;line-height:64px;font-weight:300;letter-spacing:-.5px;margin:0 0 24px;}
+  .h1 em{font-family:var(--cds-font-serif);font-style:italic;font-weight:400;}
+  .lede{font-size:18px;line-height:26px;color:#525252;margin:0 0 32px;max-width:520px;}
+  .cta{display:inline-flex;align-items:center;height:56px;padding:0 72px 0 16px;background:#0f62fe;color:#fff;border:none;cursor:pointer;font-size:16px;position:relative;margin-right:4px;}
+  .cta.sec{background:#393939;}
+  .cta::after{content:"→";position:absolute;right:16px;font-size:18px;}
+  .hero-art{background:#f4f4f4;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;}
+  .hero-art svg{width:60%;height:60%;stroke:#161616;stroke-width:1.5;fill:none;}
+  .strip{background:#161616;color:#f4f4f4;padding:96px 64px;}
+  .strip-inner{max-width:1312px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:32px;}
+  .stat .n{font-size:64px;line-height:72px;font-weight:300;}
+  .stat .n sup{font-size:32px;vertical-align:top;margin-left:4px;color:#78a9ff;}
+  .stat .l{font-size:14px;color:#c6c6c6;max-width:280px;margin-top:8px;line-height:20px;}
+  .cards{padding:96px 64px;max-width:1312px;margin:0 auto;}
+  .cards h2{font-size:32px;line-height:40px;font-weight:400;margin:0 0 48px;max-width:640px;}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:#e0e0e0;}
+  .pcard{background:#fff;padding:24px;min-height:240px;display:flex;flex-direction:column;cursor:pointer;border:1px solid #e0e0e0;margin:-1px;}
+  .pcard:hover{background:#f4f4f4;}
+  .pcard .kicker{font-family:var(--cds-font-mono);font-size:11px;color:#6f6f6f;letter-spacing:.32px;text-transform:uppercase;margin-bottom:12px;}
+  .pcard h3{font-size:20px;line-height:28px;font-weight:400;margin:0 0 8px;}
+  .pcard p{font-size:14px;line-height:20px;color:#525252;margin:0;}
+  .pcard .arr{margin-top:auto;font-size:18px;color:#0f62fe;align-self:flex-end;}
+  .footer{background:#f4f4f4;padding:64px;}
+  .footer-inner{max-width:1312px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:32px;}
+  .footer h4{font-size:14px;font-weight:600;margin:0 0 16px;}
+  .footer a{display:block;color:#525252;text-decoration:none;font-size:14px;padding:4px 0;}
+  .footer a:hover{color:#161616;text-decoration:underline;}
+  .copyright{border-top:1px solid #e0e0e0;margin-top:48px;padding-top:24px;font-size:12px;color:#6f6f6f;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="logo">IBM</span>
+  <a href="#">Products</a>
+  <a href="#">Solutions</a>
+  <a href="#">Consulting</a>
+  <a href="#">Learn</a>
+  <a href="#">Support</a>
+  <span class="right">
+    <a href="#">Sign in</a>
+    <a href="#" style="background:#0f62fe">Contact</a>
+  </span>
+</nav>
+
+<section class="hero">
+  <div>
+    <div class="eyebrow">watsonx · General availability</div>
+    <h1 class="h1">Let's put AI <em>to work.</em><br>For real outcomes.</h1>
+    <p class="lede">Scale trusted AI across your business with watsonx — the platform for foundation models, data, and governance. Built on open, hybrid architectures so you keep control of your data.</p>
+    <button class="cta">Try watsonx free</button>
+    <button class="cta sec">Book a demo</button>
+  </div>
+  <div class="hero-art">
+    <svg viewBox="0 0 200 200" aria-hidden="true">
+      <!-- Simple Carbon-style pictogram: stacked thin-line cubes -->
+      <g stroke="#161616" stroke-width="2" fill="none">
+        <rect x="40" y="70" width="60" height="60"/>
+        <rect x="100" y="70" width="60" height="60"/>
+        <rect x="70" y="40" width="60" height="60"/>
+        <rect x="70" y="100" width="60" height="60"/>
+        <line x1="40" y1="70" x2="70" y2="40"/>
+        <line x1="160" y1="70" x2="130" y2="40"/>
+        <line x1="40" y1="130" x2="70" y2="160"/>
+        <line x1="160" y1="130" x2="130" y2="160"/>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<section class="strip">
+  <div class="strip-inner">
+    <div class="stat"><div class="n">90<sup>%</sup></div><div class="l">of the Fortune 100 trust IBM to run mission-critical workloads.</div></div>
+    <div class="stat"><div class="n">200+</div><div class="l">foundation models available on watsonx, open and proprietary.</div></div>
+    <div class="stat"><div class="n">45<sup>yr</sup></div><div class="l">of consecutive US patent leadership. Research, engineered into product.</div></div>
+  </div>
+</section>
+
+<section class="cards">
+  <h2>Start with the platform your team already trusts.</h2>
+  <div class="grid3">
+    <a class="pcard" href="#"><div class="kicker">watsonx.ai</div><h3>Train, tune, and deploy foundation models</h3><p>A studio for data scientists and AI builders, with open-source and IBM models.</p><div class="arr">→</div></a>
+    <a class="pcard" href="#"><div class="kicker">watsonx.data</div><h3>An open data lakehouse</h3><p>Query data across clouds and on-premises with a single engine. Optimized for AI.</p><div class="arr">→</div></a>
+    <a class="pcard" href="#"><div class="kicker">watsonx.governance</div><h3>Govern AI at scale</h3><p>Detect bias, track provenance, and meet regulatory requirements for every model.</p><div class="arr">→</div></a>
+    <a class="pcard" href="#"><div class="kicker">IBM Cloud</div><h3>Hybrid cloud, built for the enterprise</h3><p>Run workloads anywhere. Certified for the most regulated industries.</p><div class="arr">→</div></a>
+    <a class="pcard" href="#"><div class="kicker">Red Hat OpenShift</div><h3>The industry's leading Kubernetes</h3><p>Build, deploy, and scale applications on any infrastructure.</p><div class="arr">→</div></a>
+    <a class="pcard" href="#"><div class="kicker">IBM Quantum</div><h3>Useful quantum computing, today</h3><p>Access real quantum hardware over the cloud through Qiskit Runtime.</p><div class="arr">→</div></a>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="footer-inner">
+    <div><h4>Products</h4><a>watsonx</a><a>IBM Cloud</a><a>Red Hat</a><a>Security</a><a>Automation</a></div>
+    <div><h4>Solutions</h4><a>Financial services</a><a>Healthcare</a><a>Government</a><a>Retail</a></div>
+    <div><h4>Learn</h4><a>Documentation</a><a>IBM Research</a><a>Training</a><a>Carbon Design</a></div>
+    <div><h4>Company</h4><a>About IBM</a><a>Careers</a><a>Investors</a><a>Newsroom</a></div>
+  </div>
+  <div class="copyright" style="max-width:1312px;margin:48px auto 0;">© 2026 IBM. All rights reserved. · Terms · Privacy · Accessibility</div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Type — Body, labels & code</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  html,body{margin:0;padding:0;background:#fff;color:#161616;}
+  .card{padding:20px 28px;font-family:var(--cds-font-sans);}
+  .row{display:grid;grid-template-columns:120px 1fr;gap:16px;align-items:baseline;padding:8px 0;border-bottom:1px solid #f4f4f4;}
+  .row:last-child{border-bottom:none;}
+  .meta{font-family:var(--cds-font-mono);font-size:11px;color:#6f6f6f;}
+  .body-02{font-size:16px;line-height:24px;}
+  .body-01{font-size:14px;line-height:20px;letter-spacing:.16px;}
+  .label-01{font-size:12px;line-height:16px;letter-spacing:.32px;}
+  .helper-01{font-size:12px;line-height:16px;color:#6f6f6f;letter-spacing:.32px;}
+  .code-02{font-family:var(--cds-font-mono);font-size:14px;line-height:20px;letter-spacing:.32px;}
+  .code-01{font-family:var(--cds-font-mono);font-size:12px;line-height:16px;letter-spacing:.32px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="row"><div class="meta">body-02<br><span style="color:#a8a8a8">16 / 24</span></div><div class="body-02">Carbon is IBM's open source design system for products and digital experiences.</div></div>
+  <div class="row"><div class="meta">body-01<br><span style="color:#a8a8a8">14 / 20</span></div><div class="body-01">Carbon is IBM's open source design system for products and digital experiences.</div></div>
+  <div class="row"><div class="meta">label-01<br><span style="color:#a8a8a8">12 / 16</span></div><div class="label-01">Email address</div></div>
+  <div class="row"><div class="meta">helper-01<br><span style="color:#a8a8a8">12 / 16</span></div><div class="helper-01">We'll never share your email.</div></div>
+  <div class="row"><div class="meta">code-02<br><span style="color:#a8a8a8">Plex Mono 14</span></div><div class="code-02">const carbon = require('@carbon/react');</div></div>
+  <div class="row"><div class="meta">code-01<br><span style="color:#a8a8a8">Plex Mono 12</span></div><div class="code-01">npm install @carbon/react</div></div>
+</div>
+</body>
+</html>
