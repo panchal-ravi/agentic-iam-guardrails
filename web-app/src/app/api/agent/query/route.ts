@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getSession } from '@/lib/auth/session';
-import { invokeStream } from '@/lib/agent/client';
+import { AgentUpstreamError, invokeStream } from '@/lib/agent/client';
 import { getRequestId } from '@/lib/log/context';
 import { withRequestContext } from '@/lib/log/with-request-context';
 import { getLogger } from '@/lib/log/logger';
@@ -42,10 +42,13 @@ export const POST = withRequestContext(async (req) => {
     return NextResponse.json({ error: 'invalid_body', issues: parsed.error.issues }, { status: 400 });
   }
 
-  log.info({ historyLength: parsed.data.history.length }, 'Streaming agent response');
+  if (parsed.data.history.length === 0) {
+    log.info('New chat conversation started');
+  }
+  log.debug({ historyLength: parsed.data.history.length }, 'Streaming agent response');
 
   try {
-    const stream = invokeStream({
+    const stream = await invokeStream({
       message: parsed.data.message,
       history: parsed.data.history,
       accessToken: session.access_token,
@@ -59,6 +62,12 @@ export const POST = withRequestContext(async (req) => {
       },
     });
   } catch (err) {
+    if (err instanceof AgentUpstreamError) {
+      return NextResponse.json(
+        { error: 'agent_error', detail: err.body || 'Agent request was rejected.' },
+        { status: err.status, headers: { 'X-Request-ID': getRequestId() } },
+      );
+    }
     log.error({ err: String(err) }, 'Failed to start agent stream');
     return NextResponse.json({ error: 'agent_unavailable', detail: String(err) }, { status: 502 });
   }

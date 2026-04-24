@@ -1,5 +1,15 @@
 import type { ChatMessage } from '@/types/agent';
 
+export class AgentRequestError extends Error {
+  constructor(
+    message: string,
+    public readonly status?: number,
+  ) {
+    super(message);
+    this.name = 'AgentRequestError';
+  }
+}
+
 export interface StreamCallbacks {
   onChunk: (chunk: string) => void;
   onDone: () => void;
@@ -33,7 +43,8 @@ export async function streamAgent(
     } catch {
       detail = await res.text().catch(() => '');
     }
-    cb.onError(new Error(`Agent request failed (${res.status}): ${detail}`));
+    detail = detail.trim().replace(/^"|"$/g, '');
+    cb.onError(new AgentRequestError(detail || `Agent request failed (${res.status})`, res.status));
     return;
   }
 

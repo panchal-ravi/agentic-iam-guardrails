@@ -10,6 +10,7 @@ import {
 } from '@/lib/auth/session';
 import { timingSafeEqualString } from '@/lib/auth/pkce';
 import { withRequestContext } from '@/lib/log/with-request-context';
+import { setPreferredUsername } from '@/lib/log/context';
 import { getLogger } from '@/lib/log/logger';
 
 const log = getLogger('api.auth.callback');
@@ -62,6 +63,8 @@ export const GET = withRequestContext(async (req) => {
       (typeof accessClaims.preferred_username === 'string' && accessClaims.preferred_username) ||
       (typeof claims.preferred_username === 'string' && claims.preferred_username) ||
       '';
+
+    if (preferredUsername) setPreferredUsername(preferredUsername);
 
     const expiresAt = Math.floor(Date.now() / 1000) + (tokens.expires_in ?? 3600);
 

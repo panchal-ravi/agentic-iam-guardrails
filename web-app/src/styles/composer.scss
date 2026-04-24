@@ -9,8 +9,8 @@
 
 .composer__label {
   display: block;
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 18px;
   letter-spacing: 0.32px;
   color: var(--cds-text-secondary);
   margin-bottom: var(--cds-spacing-03);
@@ -25,8 +25,8 @@
   border-bottom: 1px solid #8d8d8d;
   border-radius: 0;
   font-family: var(--cds-font-sans);
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 16px;
+  line-height: 24px;
   color: var(--cds-text-primary);
   resize: vertical;
   outline: none;
@@ -47,8 +47,8 @@
   display: flex;
   justify-content: space-between;
   padding: 0 var(--cds-spacing-02);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 18px;
   letter-spacing: 0.32px;
   color: var(--cds-text-helper);
 }

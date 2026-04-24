@@ -53,11 +53,6 @@ const baseOptions: LoggerOptions = {
     },
     log(obj) {
       const ctx = getRequestContext();
-      const message = obj.message;
-      const prefixed =
-        typeof message === 'string' && ctx.preferred_username
-          ? `[user=${ctx.preferred_username}] ${message}`
-          : message;
       return {
         service: config.LOG_SERVICE_NAME,
         environment: config.LOG_ENVIRONMENT,
@@ -72,8 +67,21 @@ const baseOptions: LoggerOptions = {
         thread: 0,
         thread_name: 'main',
         ...redact(obj),
-        message: prefixed,
       };
+    },
+  },
+  hooks: {
+    logMethod(inputArgs, method) {
+      const ctx = getRequestContext();
+      if (ctx.preferred_username) {
+        const prefix = `[user=${ctx.preferred_username}] `;
+        if (typeof inputArgs[0] === 'string') {
+          inputArgs[0] = prefix + inputArgs[0];
+        } else if (inputArgs.length >= 2 && typeof inputArgs[1] === 'string') {
+          inputArgs[1] = prefix + inputArgs[1];
+        }
+      }
+      return method.apply(this, inputArgs as Parameters<typeof method>);
     },
   },
 };

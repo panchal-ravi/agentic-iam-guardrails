@@ -110,6 +110,36 @@ export function CheckIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function WarningIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M8 1 0.5 14h15L8 1zm0 2 5.8 10H2.2L8 3zm-0.5 3v4h1V6h-1zm0 5v1h1v-1h-1z" />
+    </svg>
+  );
+}
+
+export function ErrorIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1a6 6 0 1 1 0 12A6 6 0 0 1 8 2zm-.5 3v4h1V5h-1zm0 5v1h1v-1h-1z" />
+    </svg>
+  );
+}
+
 export function AgentIcon({ size = 16, className }: IconProps) {
   return (
     <svg

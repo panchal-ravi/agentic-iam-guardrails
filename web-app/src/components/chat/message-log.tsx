@@ -6,6 +6,7 @@ import { MessageBubble, type MessageRole } from '@/components/chat/message-bubbl
 export interface DisplayMessage {
   role: MessageRole;
   text: string;
+  errorStatus?: number;
 }
 
 interface Props {
@@ -28,7 +29,7 @@ export function MessageLog({ messages, pending }: Props) {
       </div>
       <div className="chat__log" ref={ref} aria-live="polite">
         {messages.map((m, i) => (
-          <MessageBubble key={i} role={m.role} text={m.text} />
+          <MessageBubble key={i} role={m.role} text={m.text} errorStatus={m.errorStatus} />
         ))}
         {pending ? (
           <MessageBubble

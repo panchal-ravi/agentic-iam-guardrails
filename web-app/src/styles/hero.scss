@@ -15,7 +15,16 @@
 
 .workspace-grid > .hero { grid-area: hero; }
 .workspace-grid > .chat { grid-area: log; }
-.workspace-grid > .inspector { grid-area: inspector; }
+.workspace-grid > .inspector {
+  grid-area: inspector;
+  align-self: start;
+  max-height: calc(100vh - 48px - var(--cds-spacing-09) * 2);
+  overflow-y: auto;
+  padding-right: var(--cds-spacing-03);
+
+  &::-webkit-scrollbar { width: 8px; }
+  &::-webkit-scrollbar-thumb { background: var(--cds-border-subtle-00); }
+}
 .workspace-grid__composer {
   grid-area: composer;
   min-width: 0;
@@ -28,6 +37,11 @@
       "hero     log"
       "composer composer"
       "inspector inspector";
+  }
+
+  .workspace-grid > .inspector {
+    max-height: none;
+    overflow-y: visible;
   }
 }
 
@@ -119,16 +133,16 @@
 
 .eyebrow {
   font-family: var(--cds-font-mono);
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 18px;
   letter-spacing: 0.32px;
   color: var(--cds-text-secondary);
   margin-bottom: var(--cds-spacing-03);
 }
 
 .helper {
-  font-size: 12px;
-  line-height: 16px;
+  font-size: 13px;
+  line-height: 18px;
   letter-spacing: 0.32px;
   color: var(--cds-text-helper);
   margin: 0;

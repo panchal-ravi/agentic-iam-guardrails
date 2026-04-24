@@ -2,7 +2,7 @@
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { AgentIcon, UserIcon } from '@/components/icons';
+import { AgentIcon, ErrorIcon, UserIcon, WarningIcon } from '@/components/icons';
 import { TypingIndicator } from '@/components/chat/typing-indicator';
 
 export type MessageRole = 'user' | 'agent';
@@ -11,13 +11,31 @@ interface Props {
   role: MessageRole;
   text: string;
   showTyping?: boolean;
+  errorStatus?: number;
 }
 
-export function MessageBubble({ role, text, showTyping }: Props) {
-  const label = role === 'user' ? 'You' : 'Agent';
-  const Icon = role === 'user' ? UserIcon : AgentIcon;
+function errorVariant(status?: number): 'warning' | 'error' | null {
+  if (!status) return null;
+  if (status >= 400 && status < 500) return 'warning';
+  if (status >= 500 && status < 600) return 'error';
+  return null;
+}
+
+export function MessageBubble({ role, text, showTyping, errorStatus }: Props) {
+  const variant = errorVariant(errorStatus);
+  const label = role === 'user' ? 'You' : variant ? `Agent · ${errorStatus}` : 'Agent';
+  const Icon =
+    variant === 'error'
+      ? ErrorIcon
+      : variant === 'warning'
+        ? WarningIcon
+        : role === 'user'
+          ? UserIcon
+          : AgentIcon;
+  const classes = ['msg', `msg--${role}`];
+  if (variant) classes.push(`msg--${variant}`);
   return (
-    <div className={`msg msg--${role}`}>
+    <div className={classes.join(' ')} role={variant ? 'alert' : undefined}>
       <div className="msg__meta">
         <span className="msg__icon">
           <Icon size={16} />
@@ -27,7 +45,7 @@ export function MessageBubble({ role, text, showTyping }: Props) {
       <div className="msg__text">
         {showTyping ? (
           <TypingIndicator />
-        ) : role === 'agent' ? (
+        ) : role === 'agent' && !variant ? (
           <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
         ) : (
           text

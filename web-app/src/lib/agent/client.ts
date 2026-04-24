@@ -10,6 +10,16 @@ import { splitStreamBuffer } from '@/lib/agent/stream';
 
 const log = getLogger('services.agent_api');
 
+export class AgentUpstreamError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly body: string,
+  ) {
+    super(`Agent API error ${status}${body ? `: ${body}` : ''}`);
+    this.name = 'AgentUpstreamError';
+  }
+}
+
 function ensureConfigured(): void {
   if (!agent.baseUrl) throw new Error('AI_AGENT_API_URL is not configured.');
 }
@@ -142,31 +152,42 @@ export interface InvokeStreamOptions {
   accessToken: string;
 }
 
-export function invokeStream({
+export async function invokeStream({
   message,
   history,
   accessToken,
-}: InvokeStreamOptions): ReadableStream<Uint8Array> {
+}: InvokeStreamOptions): Promise<ReadableStream<Uint8Array>> {
   ensureConfigured();
   const payload = buildPayload(message, history, true);
+
+  let res: Response;
+  try {
+    res = await fetch(agent.queryUrl, {
+      method: 'POST',
+      headers: buildHeaders(accessToken),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(310_000),
+    });
+  } catch (err) {
+    const rootCause = extractRootCause(err);
+    log.error(
+      { err: String(err), rootCause: rootCause ? String(rootCause) : undefined, url: agent.queryUrl },
+      'Agent request failed',
+    );
+    throw new Error(describeFetchError(err, agent.queryUrl));
+  }
+
+  if (!res.ok) {
+    const body = await extractErrorBody(res);
+    log.error({ status: res.status, body, url: agent.queryUrl }, 'Agent API returned HTTP error');
+    throw new AgentUpstreamError(res.status, body);
+  }
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       const encoder = new TextEncoder();
 
       try {
-        const res = await fetch(agent.queryUrl, {
-          method: 'POST',
-          headers: buildHeaders(accessToken),
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(310_000),
-        });
-
-        if (!res.ok) {
-          const body = await extractErrorBody(res);
-          throw new Error(`Agent API error ${res.status}${body ? `: ${body}` : ''}`);
-        }
-
         const ct = (res.headers.get('Content-Type') ?? '').toLowerCase();
 
         if (ct.includes('application/json')) {

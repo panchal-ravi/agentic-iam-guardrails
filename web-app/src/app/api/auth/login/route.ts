@@ -18,6 +18,6 @@ export const GET = withRequestContext(async () => {
   await setPkceCookie(verifier);
 
   const url = buildAuthorizeUrl({ state, codeChallenge: challenge });
-  log.info('Redirecting to IBM Verify authorize endpoint');
+  log.debug('Redirecting to IBM Verify authorize endpoint');
   return NextResponse.redirect(url, { status: 302 });
 });

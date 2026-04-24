@@ -1,6 +1,8 @@
-# IBM watsonx — Verify Vault Demo
+# web-app (DEPRECATED)
 
-A proof-of-concept Streamlit web application styled after the [IBM watsonx](https://www.ibm.com/products/watsonx) product site. It demonstrates:
+> ⚠️ **DEPRECATED:** This Streamlit application is no longer maintained. It has been superseded by the Next.js web app located at [`../web-app/`](../web-app/). The contents of this directory are retained for historical reference only and should not be used for new deployments.
+
+A proof-of-concept Streamlit web application that demonstrates:
 
 1. **Login with IBM Verify** — OAuth 2.0 Authorization Code Flow with PKCE-ready state validation and JWT signature verification
 2. **AI Agent Chat** — Conversational interface that invokes a remote AI agent via REST API

@@ -23,7 +23,7 @@ spec:
       serviceAccountName: web
       containers:
         - name: web
-          image: panchalravi/agentguard-web-app-carbon:latest
+          image: panchalravi/agentguard-web-app:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8501
