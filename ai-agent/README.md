@@ -1,6 +1,6 @@
 # AI Agent
 
-This service is a FastAPI-based AI agent runtime. It accepts chat messages, validates a bearer token, exchanges that token for an on-behalf-of (OBO) token, optionally invokes local tools through LangChain, and streams plain-text responses back to the caller. For test environments, an env flag can bypass the incoming bearer-token requirement and skip OBO token exchange entirely.
+This service is a FastAPI-based AI agent runtime. It accepts chat messages, validates a bearer token, exchanges that token for an on-behalf-of (OBO) token, loads user-management tools from an upstream MCP server (`user-mcp`) over the streamable-HTTP transport, optionally invokes a local `shell` tool, and streams plain-text responses back to the caller. For test environments, an env flag can bypass the incoming bearer-token requirement and skip OBO token exchange entirely.
 
 ## Current project structure
 
@@ -11,11 +11,11 @@ ai-agent/
 ├── config.py              # Environment-driven settings
 ├── identity.py            # Actor token loading, OBO exchange, in-memory cache
 ├── security.py            # Bearer token extraction and lightweight JWT validation
-├── tools.py               # Local tools exposed to the agent
+├── tools.py               # Local tools exposed to the agent (shell)
+├── mcp_client.py          # Streamable-HTTP MCP client for user-mcp tool loading
 ├── models.py              # Request models
 ├── logging_utils.py       # Structured logging helpers
 ├── errors.py              # Application error type
-├── users_repository.json  # Local user dataset used by the search tool
 ├── test_agent_api.py      # API and token flow tests
 ├── pyproject.toml         # uv project definition
 ├── uv.lock                # Locked dependencies for uv
@@ -38,8 +38,11 @@ High-level request flow:
 3. The actor token is read from `ACTOR_TOKEN_PATH`.
 4. The service exchanges the incoming bearer token for an OBO token through `TOKEN_EXCHANGE_URL`, unless bypass mode is enabled.
 5. OBO tokens are cached in memory until expiry.
-6. LangChain binds the available tools and runs the agent flow.
-7. The response is streamed back as `text/plain`.
+6. A fresh MCP client is built per request against `USER_MCP_URL` (streamable-HTTP transport), forwarding the OBO token as `Authorization: Bearer ...`. The user-management tools advertised by `user-mcp` are merged with the local `shell` tool.
+7. LangChain binds the merged tool list and runs the agent flow.
+8. The response is streamed back as `text/plain`.
+
+At application startup a best-effort probe (`probe_mcp_tools`) is performed against `USER_MCP_URL` so misconfiguration (unreachable host, wrong path) is logged early. The probe is unauthenticated, so when `user-mcp` enforces JWT validation the probe will simply log a warning and the service will continue to start.
 
 The token lookup endpoint validates the incoming `Authorization: Bearer ...` header, derives the same cache key from the access token and configured role name, and returns both the cached OBO token and the agent actor token without triggering a new token exchange.
 
@@ -54,16 +57,45 @@ The token lookup endpoint validates the incoming `Authorization: Bearer ...` hea
 
 ## Available tools
 
-The agent currently exposes these tools:
+The agent exposes a single local tool plus the tools advertised by the upstream `user-mcp` server:
 
-- `list_all_users`: returns all users currently loaded into the in-memory repository as JSON
-- `search_users_by_first_name`: returns users whose first name exactly matches the provided value, case-insensitively
-- `create_user`: adds a new user record to the in-memory repository and returns the created record as JSON
-- `delete_user_by_email`: deletes a user from the in-memory repository by email and returns the deleted record as JSON
-- `update_user_by_email`: updates a user in the in-memory repository by email and returns the updated record as JSON
-- `shell`: executes shell commands from the application directory
+Local tool (defined in `tools.py`):
 
-User data is initially loaded from `users_repository.json`, but user create, update, and delete operations are kept in memory only for the lifetime of the running process and are not written back to disk.
+- `shell`: executes shell commands from the application directory.
+
+Tools fetched from `user-mcp` per request (see [`user-mcp/README.md`](../user-mcp/README.md) for full schemas):
+
+- `list_all_users`
+- `search_users_by_first_name`
+- `create_user`
+- `update_user_by_email`
+- `delete_user_by_email`
+
+The agent does not own user data anymore. Storage and validation live in `user-mcp` and are governed by `USER_BACKEND` on that service (`file` or `postgres`). All MCP tool calls from `ai-agent` carry the OBO token in the `Authorization` header so `user-mcp` can enforce JWT validation and per-user authorization.
+
+## Integration with `user-mcp`
+
+`ai-agent` consumes `user-mcp` over the streamable-HTTP MCP transport via `langchain-mcp-adapters`. The integration boils down to:
+
+1. Set `USER_MCP_URL` on the agent to the full upstream URL, including the mount path (`USER_MCP_PATH` on `user-mcp`, default `/mcp`). Example: `http://localhost:8090/mcp`.
+2. Configure `user-mcp` so the OBO tokens minted for `OBO_ROLE_NAME` carry an `aud` claim that matches `USER_MCP_AUDIENCE` and an `iss` claim that matches `USER_MCP_ISSUER` (or `USER_MCP_VERIFY_BASE_URL`).
+3. The agent forwards the OBO bearer to `user-mcp` on every tool call. When `BYPASS_AUTH_TOKEN_EXCHANGE=true` on the agent, no bearer is forwarded, so `user-mcp` must run with `USER_MCP_BYPASS_AUTH=true` for the call to succeed.
+
+Quick local bring-up in two terminals:
+
+```bash
+# Terminal A — user-mcp (dev mode, no JWT)
+cd ../user-mcp
+USER_MCP_BYPASS_AUTH=true uv run uvicorn server:app --host 0.0.0.0 --port 8090
+
+# Terminal B — ai-agent (dev mode, no token exchange)
+cd ../ai-agent
+BYPASS_AUTH_TOKEN_EXCHANGE=true \
+USER_MCP_URL=http://localhost:8090/mcp \
+uv run uvicorn agent_api:app --host 0.0.0.0 --port 8000
+```
+
+When the agent starts it logs an `mcp_probe_succeeded` event with the tool names discovered on `user-mcp`. If the URL is wrong or the server is unreachable, expect `mcp_probe_failed` instead — the agent still starts but every `/v1/agent/query` will fail to load tools until the URL is fixed.
 
 ## Configuration
 
@@ -78,6 +110,7 @@ The service reads environment variables from the process environment and also lo
 | `TOKEN_EXCHANGE_TIMEOUT_SECONDS` | `10` | Token exchange timeout |
 | `OBO_ROLE_NAME` | `agent-runtime` | Cache key input for OBO token reuse |
 | `BYPASS_AUTH_TOKEN_EXCHANGE` | `false` | When `true`, `/v1/agent/query` does not require `Authorization` and skips OBO token exchange; `/v1/agent/tokens` will not return cached tokens |
+| `USER_MCP_URL` | `http://localhost:8090/mcp` | Full URL of the upstream `user-mcp` streamable-HTTP endpoint, including the mount path. Must match `USER_MCP_HOST` / `USER_MCP_PORT` / `USER_MCP_PATH` on the `user-mcp` service. |
 | `HOST` | `0.0.0.0` | Bind host |
 | `PORT` | `8000` | Bind port |
 | `LOG_LEVEL` | `INFO` | Logging level |
@@ -118,6 +151,7 @@ export OPENAI_API_KEY="your-openai-api-key"
 export ACTOR_TOKEN_PATH="$(pwd)/.local/actor-token"
 export TOKEN_EXCHANGE_URL="http://localhost:8080/v1/identity/obo-token"
 export BYPASS_AUTH_TOKEN_EXCHANGE="false"
+export USER_MCP_URL="http://localhost:8090/mcp"
 export HOST="0.0.0.0"
 export PORT="8000"
 ```
@@ -176,6 +210,7 @@ docker run --rm \
   -p 8000:8000 \
   -e OPENAI_API_KEY="your-openai-api-key" \
   -e TOKEN_EXCHANGE_URL="http://host.docker.internal:8080/v1/identity/obo-token" \
+  -e USER_MCP_URL="http://host.docker.internal:8090/mcp" \
   -e ACTOR_TOKEN_PATH="/run/secrets/actor-token" \
   -e BYPASS_AUTH_TOKEN_EXCHANGE="false" \
   -v "$(pwd)/.local/actor-token:/run/secrets/actor-token:ro" \
@@ -216,6 +251,7 @@ TOKEN_EXCHANGE_URL=http://identity-service.ai-agent.svc.cluster.local:8080/v1/id
 TOKEN_EXCHANGE_TIMEOUT_SECONDS=10
 OBO_ROLE_NAME=agent-runtime
 BYPASS_AUTH_TOKEN_EXCHANGE=false
+USER_MCP_URL=http://user-mcp.ai-agent.svc.cluster.local:8090/mcp
 HOST=0.0.0.0
 PORT=8000
 LOG_LEVEL=INFO
@@ -335,7 +371,7 @@ curl -N \
     "messages": [
       {
         "role": "user",
-        "content": "Find users with first name Ravi"
+        "content": "Find users with first name henry"
       }
     ]
   }'

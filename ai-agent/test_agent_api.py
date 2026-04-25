@@ -31,34 +31,50 @@ class FakeAssistantResponse:
 
 
 class FakeToolBoundLLM:
-    def __init__(self, response=None):
-        self.response = response or FakeAssistantResponse()
+    def __init__(self, response=None, responses=None, stream_chunks=None):
+        if responses is not None:
+            self.responses = list(responses)
+        elif response is not None:
+            self.responses = [response]
+        else:
+            self.responses = []
+        self.invoke_count = 0
+        self.stream_chunks = stream_chunks or [FakeChunk("streamed output")]
+        self.last_stream_messages = None
 
     def invoke(self, messages):
-        return self.response
-
-
-class FakeStreamingLLM:
-    def __init__(self, chunks=None):
-        self.chunks = chunks or [FakeChunk("streamed output")]
-        self.last_messages = None
+        if self.invoke_count < len(self.responses):
+            response = self.responses[self.invoke_count]
+        else:
+            response = FakeAssistantResponse()
+        self.invoke_count += 1
+        return response
 
     def stream(self, messages):
-        self.last_messages = list(messages)
-        return iter(self.chunks)
+        self.last_stream_messages = list(messages)
+        return iter(self.stream_chunks)
 
 
 class FakeTool:
     def __init__(self, output: str):
         self.output = output
+        self.invocations: list[dict] = []
 
     def invoke(self, args):
+        self.invocations.append(args)
+        return self.output
+
+    async def ainvoke(self, args):
+        self.invocations.append(args)
         return self.output
 
 
-class FakeBoundLLM(FakeStreamingLLM):
+class FakeBoundLLM:
+    def __init__(self):
+        self.bound = FakeToolBoundLLM()
+
     def bind_tools(self, tools):
-        return FakeToolBoundLLM()
+        return self.bound
 
 
 def _jwt_with_expiry(offset_seconds: int) -> str:
@@ -108,46 +124,17 @@ def _structured_log_records(caplog, logger_name: str):
 def isolate_runtime(tmp_path, monkeypatch):
     actor_token_path = tmp_path / "actor-token"
     actor_token_path.write_text("actor-token", encoding="utf-8")
-    users_repository_path = tmp_path / "users_repository.json"
-    users_repository_path.write_text(
-        json.dumps(
-            [
-                {
-                    "first_name": "Noah",
-                    "last_name": "Thompson",
-                    "ssn": "714-83-8341",
-                    "phone": "+1-461-252-3994",
-                    "email": "noah.thompson206@example.com",
-                    "credit_card_number": "2391-5556-0490-6326",
-                    "ip_address": "34.226.225.173",
-                    "aws_key": "AKIAEXAMPLE0001",
-                },
-                {
-                    "first_name": "Emma",
-                    "last_name": "Taylor",
-                    "ssn": "111-22-3333",
-                    "phone": "+1-999-111-2222",
-                    "email": "emma.taylor@example.com",
-                    "credit_card_number": "4111-1111-1111-1111",
-                    "ip_address": "10.0.0.2",
-                },
-            ]
-        ),
-        encoding="utf-8",
-    )
 
     monkeypatch.setattr(agent_api.SETTINGS, "actor_token_path", actor_token_path)
     monkeypatch.setattr(agent_api.SETTINGS, "token_exchange_url", "http://token-exchange.local/obo")
     monkeypatch.setattr(agent_api.SETTINGS, "obo_role_name", "test-role")
     monkeypatch.setattr(agent_api.SETTINGS, "bypass_auth_token_exchange", False)
-    monkeypatch.setattr(tools, "USER_REPOSITORY_PATH", users_repository_path)
-    monkeypatch.setattr(tools, "_USER_REPOSITORY", None)
 
     agent_api.app.state.settings = agent_api.SETTINGS
     agent_api.app.state.agent_runtime = AgentRuntime(
-        llm=FakeStreamingLLM(),
         llm_with_tools=FakeToolBoundLLM(),
         logger=agent_api.LOGGER,
+        tool_registry={"shell": tools.shell},
     )
     agent_api.app.state.token_service = OboTokenService(
         settings=agent_api.SETTINGS,
@@ -448,10 +435,9 @@ def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch, caplog):
 def test_read_request_does_not_trigger_fallback_shell(monkeypatch):
     client = TestClient(agent_api.app)
     access_token = _jwt_with_expiry(300)
-    streaming_llm = FakeStreamingLLM()
+    bound_llm = FakeToolBoundLLM()
     agent_api.app.state.agent_runtime = AgentRuntime(
-        llm=streaming_llm,
-        llm_with_tools=FakeToolBoundLLM(),
+        llm_with_tools=bound_llm,
         logger=agent_api.LOGGER,
     )
 
@@ -469,8 +455,8 @@ def test_read_request_does_not_trigger_fallback_shell(monkeypatch):
 
     assert response.status_code == 200
     assert response.text == "streamed output"
-    assert streaming_llm.last_messages is not None
-    assert len(streaming_llm.last_messages) == 2
+    assert bound_llm.last_stream_messages is not None
+    assert len(bound_llm.last_stream_messages) == 2
 
 
 def test_streaming_response_is_logged_with_agent_text(monkeypatch, caplog):
@@ -512,66 +498,99 @@ def test_streaming_response_is_logged_with_agent_text(monkeypatch, caplog):
     assert response_logs[-1]["client_ip"] == "testclient"
 
 
-def test_user_repository_tools_mutate_memory_only():
-    on_disk_before = json.loads(tools.USER_REPOSITORY_PATH.read_text(encoding="utf-8"))
+def test_multi_round_tool_calls_are_dispatched_in_sequence(monkeypatch, caplog):
+    client = TestClient(agent_api.app)
+    access_token = _jwt_with_expiry(300)
 
-    created_user = {
-        "first_name": "Ava",
-        "last_name": "Brown",
-        "ssn": "222-33-4444",
-        "phone": "+1-222-333-4444",
-        "email": "ava.brown@example.com",
-        "credit_card_number": "4222-2222-2222-2222",
-        "ip_address": "10.0.0.3",
-    }
-    created = json.loads(tools.create_user.invoke({"user": created_user}))
-    users_after_create = json.loads(tools.list_all_users.invoke({}))
+    search_tool = FakeTool('[{"email": "mia.williams670@example.com", "first_name": "Mia"}]')
+    search_tool.name = "search_users_by_first_name"
+    update_tool = FakeTool('{"email": "mia.changed@example.com", "updated": true}')
+    update_tool.name = "update_user_by_email"
 
-    assert created == created_user
-    assert [user["email"] for user in users_after_create] == [
-        "noah.thompson206@example.com",
-        "emma.taylor@example.com",
-        "ava.brown@example.com",
-    ]
-    assert json.loads(tools.USER_REPOSITORY_PATH.read_text(encoding="utf-8")) == on_disk_before
+    bound_llm = FakeToolBoundLLM(
+        responses=[
+            FakeAssistantResponse(
+                tool_calls=[
+                    {
+                        "id": "call_search_1",
+                        "name": "search_users_by_first_name",
+                        "args": {"first_name": "Mia"},
+                    }
+                ],
+            ),
+            FakeAssistantResponse(
+                tool_calls=[
+                    {
+                        "id": "call_update_1",
+                        "name": "update_user_by_email",
+                        "args": {
+                            "current_email": "mia.williams670@example.com",
+                            "email": "mia.changed@example.com",
+                        },
+                    }
+                ],
+            ),
+            FakeAssistantResponse(),
+        ],
+        stream_chunks=[FakeChunk("Done. Mia's email has been updated.")],
+    )
+    agent_api.app.state.agent_runtime = AgentRuntime(
+        llm_with_tools=bound_llm,
+        logger=agent_api.LOGGER,
+        tool_registry={
+            "search_users_by_first_name": search_tool,
+            "update_user_by_email": update_tool,
+        },
+    )
 
+    monkeypatch.setattr(
+        agent_api.app.state.token_service,
+        "perform_token_exchange",
+        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+    )
 
-def test_update_and_delete_user_tools_use_email():
-    updated = json.loads(
-        tools.update_user_by_email.invoke(
-            {
-                "email": "noah.thompson206@example.com",
-                "user": {
-                    "first_name": "Noah",
-                    "last_name": "Thompson",
-                    "ssn": "714-83-8341",
-                    "phone": "+1-000-000-0000",
-                    "email": "noah.updated@example.com",
-                    "credit_card_number": "2391-5556-0490-6326",
-                    "ip_address": "34.226.225.173",
-                    "aws_key": "AKIAEXAMPLE0001",
-                },
-            }
+    with caplog.at_level(logging.INFO, logger="agent_api"):
+        response = client.post(
+            "/v1/agent/query",
+            headers={"Authorization": f"Bearer {access_token}"},
+            json={
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "update mia's email to mia.changed@example.com",
+                    }
+                ]
+            },
         )
-    )
-    deleted = json.loads(
-        tools.delete_user_by_email.invoke({"email": "noah.updated@example.com"})
-    )
-    remaining_users = json.loads(tools.list_all_users.invoke({}))
 
-    assert updated["email"] == "noah.updated@example.com"
-    assert updated["phone"] == "+1-000-000-0000"
-    assert deleted["email"] == "noah.updated@example.com"
-    assert [user["email"] for user in remaining_users] == ["emma.taylor@example.com"]
+    assert response.status_code == 200
+    assert response.text == "Done. Mia's email has been updated."
+    assert search_tool.invocations == [{"first_name": "Mia"}]
+    assert update_tool.invocations == [
+        {
+            "current_email": "mia.williams670@example.com",
+            "email": "mia.changed@example.com",
+        }
+    ]
+    assert bound_llm.invoke_count == 3
+    assert bound_llm.last_stream_messages is not None
+    assert len(bound_llm.last_stream_messages) == 6
+
+    info_stages = {
+        (payload.get("event"), payload.get("stage"))
+        for payload in _structured_log_records(caplog, "agent_api")
+    }
+    assert ("agent_execution", "tool_call") not in info_stages
+    assert ("agent_execution", "tool_result") not in info_stages
 
 
 def test_non_shell_tool_call_is_executed_through_runtime_registry(monkeypatch):
     client = TestClient(agent_api.app)
     access_token = _jwt_with_expiry(300)
-    streaming_llm = FakeStreamingLLM()
-    agent_api.app.state.agent_runtime = AgentRuntime(
-        llm=streaming_llm,
-        llm_with_tools=FakeToolBoundLLM(
+    fake_user_tool = FakeTool('[{"email": "noah.thompson206@example.com"}]')
+    fake_user_tool.name = "list_all_users"
+    bound_llm = FakeToolBoundLLM(
+        responses=[
             FakeAssistantResponse(
                 tool_calls=[
                     {
@@ -580,9 +599,14 @@ def test_non_shell_tool_call_is_executed_through_runtime_registry(monkeypatch):
                         "args": {},
                     }
                 ]
-            )
-        ),
+            ),
+            FakeAssistantResponse(),
+        ]
+    )
+    agent_api.app.state.agent_runtime = AgentRuntime(
+        llm_with_tools=bound_llm,
         logger=agent_api.LOGGER,
+        tool_registry={"list_all_users": fake_user_tool},
     )
 
     monkeypatch.setattr(
@@ -598,26 +622,31 @@ def test_non_shell_tool_call_is_executed_through_runtime_registry(monkeypatch):
     )
 
     assert response.status_code == 200
-    assert streaming_llm.last_messages is not None
-    assert len(streaming_llm.last_messages) == 4
-    assert json.loads(streaming_llm.last_messages[-1].content)[0]["email"] == "noah.thompson206@example.com"
+    assert bound_llm.last_stream_messages is not None
+    assert len(bound_llm.last_stream_messages) == 4
+    assert (
+        json.loads(bound_llm.last_stream_messages[-1].content)[0]["email"]
+        == "noah.thompson206@example.com"
+    )
 
 
 def test_shell_tool_result_is_logged(monkeypatch, caplog):
     client = TestClient(agent_api.app)
     access_token = _jwt_with_expiry(300)
     agent_api.app.state.agent_runtime = AgentRuntime(
-        llm=FakeStreamingLLM(),
         llm_with_tools=FakeToolBoundLLM(
-            FakeAssistantResponse(
-                tool_calls=[
-                    {
-                        "id": "call_shell_1",
-                        "name": "shell",
-                        "args": {"command": "ls -l agent_runtime.py"},
-                    }
-                ]
-            )
+            responses=[
+                FakeAssistantResponse(
+                    tool_calls=[
+                        {
+                            "id": "call_shell_1",
+                            "name": "shell",
+                            "args": {"command": "ls -l agent_runtime.py"},
+                        }
+                    ]
+                ),
+                FakeAssistantResponse(),
+            ]
         ),
         logger=agent_api.LOGGER,
     )
@@ -627,13 +656,13 @@ def test_shell_tool_result_is_logged(monkeypatch, caplog):
         "perform_token_exchange",
         lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
     )
-    monkeypatch.setitem(
-        agent_runtime.TOOL_REGISTRY,
-        "shell",
-        FakeTool("exit_code: 0\nstdout:\n-rw-r--r-- agent_runtime.py\nstderr:\n"),
+    fake_shell = FakeTool(
+        "exit_code: 0\nstdout:\n-rw-r--r-- agent_runtime.py\nstderr:\n"
     )
+    fake_shell.name = "shell"
+    agent_api.app.state.agent_runtime.tool_registry["shell"] = fake_shell
 
-    with caplog.at_level(logging.INFO, logger="agent_api"):
+    with caplog.at_level(logging.DEBUG, logger="agent_api"):
         response = client.post(
             "/v1/agent/query",
             headers={"Authorization": f"Bearer {access_token}"},
@@ -648,6 +677,8 @@ def test_shell_tool_result_is_logged(monkeypatch, caplog):
         if payload.get("stage") == "tool_result"
     ]
     assert tool_result_logs
+    assert tool_result_logs[-1]["level"] == "DEBUG"
+    assert "message" not in tool_result_logs[-1]
     assert tool_result_logs[-1]["tool_name"] == "shell"
     assert tool_result_logs[-1]["exit_code"] == 0
     assert tool_result_logs[-1]["stdout_length"] > 0
@@ -678,6 +709,7 @@ def test_create_app_builds_runtime_from_configured_model(monkeypatch):
             host=agent_api.SETTINGS.host,
             port=agent_api.SETTINGS.port,
             log_level=agent_api.SETTINGS.log_level,
+            user_mcp_url=agent_api.SETTINGS.user_mcp_url,
         )
     )
 
@@ -685,7 +717,9 @@ def test_create_app_builds_runtime_from_configured_model(monkeypatch):
         "model": "openai:gpt-5.4-mini",
         "kwargs": {"streaming": True},
     }
-    assert isinstance(app.state.agent_runtime, AgentRuntime)
+    assert app.state.llm is not None
+    # In production, agent_runtime is built per-request and stays None at startup.
+    assert app.state.agent_runtime is None
 
 
 def test_agent_request_started_is_logged_with_identity(monkeypatch, caplog):

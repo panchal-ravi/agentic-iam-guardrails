@@ -36,16 +36,6 @@ _HOSTNAME = socket.gethostname()
 _HOST_IP = _resolve_host_ip(_HOSTNAME)
 
 
-_NOISY_THIRD_PARTY_LOGGERS = (
-    "httpx",
-    "httpcore",
-    "mcp",
-    "mcp.client",
-    "mcp.client.streamable_http",
-    "anyio",
-)
-
-
 def configure_logging(log_level: str) -> None:
     root_logger = logging.getLogger()
     root_logger.setLevel(_resolve_log_level_value(log_level))
@@ -65,9 +55,6 @@ def configure_logging(log_level: str) -> None:
         root_logger.addHandler(existing_handler)
 
     existing_handler.setFormatter(formatter)
-
-    for logger_name in _NOISY_THIRD_PARTY_LOGGERS:
-        logging.getLogger(logger_name).setLevel(logging.WARNING)
 
 
 def build_uvicorn_log_config(log_level: str) -> dict[str, Any]:

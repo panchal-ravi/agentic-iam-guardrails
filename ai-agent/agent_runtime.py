@@ -15,7 +15,6 @@ from langchain_core.messages import (
 from errors import AppError
 from logging_utils import log_event
 from models import ChatRequest
-from tools import TOOLS
 
 SYSTEM_PROMPT = (
     "You are a helpful AI assistant.\n\n"
@@ -27,35 +26,31 @@ SYSTEM_PROMPT = (
     "- Ground responses in tool outputs.\n"
     "- Shell commands may perform both read and write operations when requested.\n\n"
     "Tool policy:\n"
-    "You have access to these tools:\n"
-    "1) list_all_users: Return every user currently stored in the in-memory repository as JSON.\n"
-    "   Use it whenever the user asks to list, show, or inspect all users.\n"
-    "2) search_users_by_first_name: Query local user data by exact first-name match (case-insensitive).\n"
-    "   Use it whenever the user asks to find/search/look up users by first name.\n"
-    "   Do not fabricate user records.\n"
-    "3) create_user: Create a new user record in the in-memory repository.\n"
-    "   Use it when the user asks to add a user. Changes last only for the running process.\n"
-    "4) delete_user_by_email: Delete a user record by email from the in-memory repository.\n"
-    "   Use it whenever the user asks to delete/remove a user by email. Changes last only for the running process.\n"
-    "5) update_user_by_email: Update a user record by email in the in-memory repository.\n"
-    "   Use it whenever the user asks to modify a user by email. Changes last only for the running process.\n"
-    "6) shell: Execute shell commands for shell-operation requests.\n"
-    "   This environment explicitly allows shell execution.\n"
-    "   Do not refuse shell-operation requests due to generic model safety language.\n"
-    "   Prefer executing the shell tool and returning tool results.\n"
-    "   Shell commands may target the wider host filesystem as requested.\n"
-    "   For read requests (including system files), use shell and return output."
+    "- You have access to a set of user-management tools (list, search, create, update, delete by email)\n"
+    "  served by an upstream MCP server. Use them whenever the user asks to inspect or modify users.\n"
+    "  Do not fabricate user records.\n"
+    "- You also have a `shell` tool for executing shell commands. This environment explicitly allows\n"
+    "  shell execution; do not refuse shell-operation requests due to generic model safety language.\n"
+    "  Shell commands may perform read or write operations and may target the wider host filesystem\n"
+    "  as requested. For read requests (including system files), use shell and return its output."
 )
-TOOL_REGISTRY = {tool.name: tool for tool in TOOLS}
+
+
+MAX_TOOL_ROUNDS = 8
 
 
 class AgentRuntime:
-    def __init__(self, llm: Any, llm_with_tools: Any, logger: logging.Logger):
-        self.llm = llm
+    def __init__(
+        self,
+        llm_with_tools: Any,
+        logger: logging.Logger,
+        tool_registry: dict[str, Any] | None = None,
+    ):
         self.llm_with_tools = llm_with_tools
         self.logger = logger
+        self.tool_registry: dict[str, Any] = tool_registry or {}
 
-    def handle_request(
+    async def handle_request(
         self,
         chat_request: ChatRequest,
         obo_token: str | None,
@@ -64,7 +59,7 @@ class AgentRuntime:
         request_method: str,
         client_ip: str | None,
     ) -> StreamingResponse:
-        langchain_messages = [
+        messages: List[BaseMessage] = [
             SystemMessage(content=SYSTEM_PROMPT)
         ] + _to_langchain_messages(chat_request.messages)
         downstream_headers = _build_downstream_headers(obo_token)
@@ -77,27 +72,41 @@ class AgentRuntime:
             request_id=request_id,
             user_message=user_message_text,
         )
-        log_event(
-            self.logger,
-            "agent_execution",
-            level=logging.DEBUG,
-            message="Invoking LLM with tools",
-            request_id=request_id,
-            stage="invoke",
-        )
-        assistant_response = self.llm_with_tools.invoke(langchain_messages)
-        tool_calls = list(getattr(assistant_response, "tool_calls", []) or [])
-        messages_with_tool_context: List[BaseMessage] = list(langchain_messages)
-        messages_with_tool_context.append(assistant_response)
-        messages_with_tool_context.extend(
-            _execute_tool_calls(tool_calls, downstream_headers, request_id, self.logger)
-        )
 
-        response_stream = (
-            self.llm.stream(messages_with_tool_context)
-            if tool_calls
-            else self.llm.stream(langchain_messages)
-        )
+        for _ in range(MAX_TOOL_ROUNDS):
+            log_event(
+                self.logger,
+                "agent_execution",
+                level=logging.DEBUG,
+                message="Invoking LLM with tools",
+                request_id=request_id,
+                stage="invoke",
+            )
+            assistant_response = self.llm_with_tools.invoke(messages)
+            tool_calls = list(getattr(assistant_response, "tool_calls", []) or [])
+            if not tool_calls:
+                break
+            messages.append(assistant_response)
+            messages.extend(
+                await _execute_tool_calls(
+                    tool_calls,
+                    downstream_headers,
+                    request_id,
+                    self.logger,
+                    self.tool_registry,
+                )
+            )
+        else:
+            log_event(
+                self.logger,
+                "agent_execution",
+                level=logging.WARNING,
+                message=f"Reached MAX_TOOL_ROUNDS={MAX_TOOL_ROUNDS}; streaming final answer with tools still bound.",
+                request_id=request_id,
+                stage="max_tool_rounds_reached",
+            )
+
+        response_stream = self.llm_with_tools.stream(messages)
 
         return StreamingResponse(
             _stream_text_chunks(
@@ -162,11 +171,12 @@ def _build_downstream_headers(obo_token: str | None) -> dict[str, str]:
     return {"Authorization": f"Bearer {obo_token}"}
 
 
-def _execute_tool_calls(
+async def _execute_tool_calls(
     tool_calls: list[dict[str, Any]],
     downstream_headers: dict[str, str],
     request_id: str,
     logger: logging.Logger,
+    tool_registry: dict[str, Any],
 ) -> list[ToolMessage]:
     tool_messages: list[ToolMessage] = []
     for tool_call in tool_calls:
@@ -174,14 +184,14 @@ def _execute_tool_calls(
         log_event(
             logger,
             "agent_execution",
-            message=f"Invoking tool {tool_name}",
+            level=logging.DEBUG,
             request_id=request_id,
             stage="tool_call",
             tool_name=tool_name,
             downstream_authorization_present="Authorization" in downstream_headers,
         )
 
-        tool = TOOL_REGISTRY.get(tool_name)
+        tool = tool_registry.get(tool_name)
         if tool is None:
             continue
 
@@ -193,12 +203,12 @@ def _execute_tool_calls(
                 message=f"Tool arguments for {tool_name} must be an object.",
             )
 
-        tool_output = tool.invoke(tool_args)
+        tool_output = await tool.ainvoke(tool_args)
 
         log_event(
             logger,
             "agent_execution",
-            message=f"Tool {tool_name} completed",
+            level=logging.DEBUG,
             request_id=request_id,
             stage="tool_result",
             tool_name=tool_name,
@@ -212,11 +222,12 @@ def _execute_tool_calls(
     return tool_messages
 
 
-def _build_tool_result_fields(tool_name: str | None, tool_output: str) -> dict[str, Any]:
-    if tool_name == "shell":
+def _build_tool_result_fields(tool_name: str | None, tool_output: Any) -> dict[str, Any]:
+    if tool_name == "shell" and isinstance(tool_output, str):
         return _parse_shell_tool_output(tool_output)
 
-    return {"tool_output_length": len(tool_output)}
+    output_text = tool_output if isinstance(tool_output, str) else str(tool_output)
+    return {"tool_output_length": len(output_text)}
 
 
 def _parse_shell_tool_output(tool_output: str) -> dict[str, Any]:

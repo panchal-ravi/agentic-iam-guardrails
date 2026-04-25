@@ -23,6 +23,7 @@ class Settings:
     host: str
     port: int
     log_level: str
+    user_mcp_url: str
 
 
 def load_settings() -> Settings:
@@ -44,6 +45,7 @@ def load_settings() -> Settings:
         host=os.getenv("HOST", "0.0.0.0"),
         port=int(os.getenv("PORT", "8000")),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        user_mcp_url=os.getenv("USER_MCP_URL", "http://localhost:8090/mcp"),
     )
     configure_logging(settings.log_level)
     serialized_settings = asdict(settings)

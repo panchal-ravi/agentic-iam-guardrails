@@ -17,6 +17,7 @@ def test_load_settings_logs_all_configured_values(monkeypatch, tmp_path, caplog)
         "HOST": "127.0.0.1",
         "PORT": "9000",
         "LOG_LEVEL": "debug",
+        "USER_MCP_URL": "http://user-mcp.local/mcp",
     }
 
     for key, value in configured_values.items():
@@ -35,6 +36,7 @@ def test_load_settings_logs_all_configured_values(monkeypatch, tmp_path, caplog)
         host="127.0.0.1",
         port=9000,
         log_level="DEBUG",
+        user_mcp_url="http://user-mcp.local/mcp",
     )
     assert len(caplog.records) == 1
 
@@ -49,6 +51,7 @@ def test_load_settings_logs_all_configured_values(monkeypatch, tmp_path, caplog)
     assert payload["port"] == 9000
     assert payload["token_exchange_timeout_seconds"] == 42.5
     assert payload["token_exchange_url"] == "https://example.test/v1/identity/obo-token"
+    assert payload["user_mcp_url"] == "http://user-mcp.local/mcp"
     assert payload["level"] == "INFO"
     assert payload["logger"] == "config"
     assert payload["hostname"]

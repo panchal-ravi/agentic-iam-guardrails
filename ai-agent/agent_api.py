@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -18,6 +19,7 @@ from logging_utils import (
     log_event,
     reset_log_context,
 )
+from mcp_client import fetch_mcp_tools, probe_mcp_tools
 from models import AgentTokensResponse, ChatRequest
 from security import (
     extract_agent_identity_claims,
@@ -25,7 +27,7 @@ from security import (
     extract_user_identity_claims,
     validate_access_token,
 )
-from tools import TOOLS
+from tools import TOOLS as LOCAL_TOOLS
 
 SETTINGS = load_settings()
 LOGGER = logging.getLogger("agent_api")
@@ -35,12 +37,18 @@ def _get_client_ip(request: Request) -> str | None:
     return request.client.host if request.client is not None else None
 
 
-def _build_agent_runtime(settings: Settings) -> AgentRuntime:
-    llm = init_chat_model(settings.model, streaming=True)
+def _build_base_llm(settings: Settings):
+    return init_chat_model(settings.model, streaming=True)
+
+
+def _build_runtime_for_request(
+    llm,
+    tools: list,
+) -> AgentRuntime:
     return AgentRuntime(
-        llm=llm,
-        llm_with_tools=llm.bind_tools(TOOLS),
+        llm_with_tools=llm.bind_tools(tools),
         logger=LOGGER,
+        tool_registry={tool.name: tool for tool in tools},
     )
 
 
@@ -83,11 +91,22 @@ def create_app(
     settings: Settings | None = None,
     runtime: AgentRuntime | None = None,
     token_service: OboTokenService | None = None,
+    llm: object | None = None,
 ) -> FastAPI:
     active_settings = settings or SETTINGS
-    app = FastAPI()
+
+    @asynccontextmanager
+    async def lifespan(app_inner: FastAPI):
+        await probe_mcp_tools(active_settings.user_mcp_url)
+        yield
+
+    app = FastAPI(lifespan=lifespan)
     app.state.settings = active_settings
-    app.state.agent_runtime = runtime or _build_agent_runtime(active_settings)
+    app.state.llm = llm or _build_base_llm(active_settings)
+    # When set (in tests), this fixed runtime is used instead of building one
+    # per request. In production it stays None and the route fetches MCP tools
+    # per-request and binds a fresh runtime.
+    app.state.agent_runtime = runtime
     app.state.token_service = token_service or OboTokenService(
         settings=active_settings,
         logger=LOGGER,
@@ -175,7 +194,17 @@ def create_app(
                 access_token_payload
             )["preferred_username"]
         bind_log_context(preferred_username=preferred_username)
-        return request.app.state.agent_runtime.handle_request(
+
+        runtime = request.app.state.agent_runtime
+        if runtime is None:
+            mcp_tools = await fetch_mcp_tools(
+                request.app.state.settings.user_mcp_url,
+                obo_token,
+            )
+            tools = list(LOCAL_TOOLS) + mcp_tools
+            runtime = _build_runtime_for_request(request.app.state.llm, tools)
+
+        return await runtime.handle_request(
             chat_request=chat_request,
             obo_token=obo_token,
             request_id=request.state.request_id,

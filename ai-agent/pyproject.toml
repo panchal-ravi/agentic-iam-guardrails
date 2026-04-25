@@ -6,9 +6,11 @@ readme = "SPEC.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi",
+    "httpx>=0.28",
     "langchain",
     "langchain-deepseek>=1.0.1",
     "langchain-google-genai>=4.2.1",
+    "langchain-mcp-adapters>=0.1.0",
     "langchain-openai",
     "openai",
     "pydantic",
