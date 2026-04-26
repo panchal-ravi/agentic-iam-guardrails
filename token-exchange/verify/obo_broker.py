@@ -9,12 +9,13 @@ import tenacity.wait
 from broker.cache import TokenCache
 from exceptions.errors import VerifyTokenExchangeError
 from app_logging.logger import get_logger
+from verify.authorization import authorize_scope
 from verify.verify_client import IBMVerifyClient
 
 logger = get_logger(__name__)
 
 
-def _claim_from_token(token: str, claim: str) -> str | None:
+def claim_from_token(token: str, claim: str) -> str | None:
     """Return *claim* from *token* by decoding the JWT without verification."""
     try:
         payload = jwt.decode(token, options={"verify_signature": False})
@@ -63,13 +64,15 @@ class OBOBroker:
             :class:`OBOTokenResult` with the access token and cache flag.
 
         Raises:
+            VerifyAuthorizationError:   Caller's groups don't entitle the requested scope.
             VerifyAuthenticationError:  IBM Verify rejected the request.
             VerifyTokenExchangeError:   IBM Verify could not complete the exchange.
             CacheError:                 Unexpected cache failure.
         """
         start = time.monotonic()
-        preferred_username = _claim_from_token(subject_token, "preferred_username")
-        agent_id = _claim_from_token(actor_token, "agent_id")
+        authorize_scope(subject_token, scope)
+        preferred_username = claim_from_token(subject_token, "preferred_username")
+        agent_id = claim_from_token(actor_token, "agent_id")
 
         normalized_scope = _normalize_scope(scope)
         # Compose actor_token + normalized scope into the second cache slot so the

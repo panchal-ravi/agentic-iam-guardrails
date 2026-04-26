@@ -35,7 +35,7 @@ kubectl apply -f deploy-k8s/web-app.yaml
 ## Deploy OPA server (if testing OPA)
 ```
 kubectl create ns opa
-kubectl apply -n opa -f dedploy-k8s/opa-server.yaml
+kubectl apply -n opa -f deploy-k8s/opa-server.yaml
 
 ##Test policies are loaded
 kubectl port-forward -n opa svc/opa-service 8080:80

@@ -24,3 +24,7 @@ class VerifyAuthenticationError(VerifyOBOError):
 
 class VerifyTokenExchangeError(VerifyOBOError):
     """Raised when IBM Verify fails to complete the OBO token exchange."""
+
+
+class VerifyAuthorizationError(VerifyOBOError):
+    """Raised when the subject_token's groups don't entitle the requested scope."""

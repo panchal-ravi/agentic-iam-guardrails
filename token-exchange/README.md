@@ -13,6 +13,26 @@ that the tool itself declares (e.g. `users.read` for read tools,
 verbatim to IBM Verify (RFC 8693 `scope` parameter); a token issued for
 `users.read` can never authorize a `users.write` tool downstream.
 
+### Pre-exchange authorization gate
+
+Before any outbound call to IBM Verify, the broker enforces a local
+groups-vs-scope check. It decodes the `subject_token` (without signature
+verification), reads the `groups` claim, and verifies that every requested
+scope is permitted by at least one of the caller's groups. The check fails
+closed: a missing/malformed `groups` claim or an unknown scope token both
+deny.
+
+Default policy (hardcoded in `verify/authorization.py:SCOPE_REQUIREMENTS`):
+
+| Scope          | Allowed groups       |
+|----------------|----------------------|
+| `users.read`   | `readonly`, `admin`  |
+| `users.write`  | `admin`              |
+
+Denied requests return `403 Forbidden` with a descriptive `detail` and emit
+an `obo_token_exchange_authz_denied` log event. Cached tokens are never
+returned on a denial — the check runs before the cache lookup.
+
 Each call emits one `event=verify_obo_token_exchange` log line with
 `request_id`, `cache_hit`, `scope`, `duration_ms`, and a `[user=<preferred_username>
 agent=<agent_id>] OBO token exchange (cache hit|issued by IBM Verify) for
@@ -279,6 +299,7 @@ Exchange a `subject_token` + `actor_token` for an IBM Verify access token on beh
 | `200` | Success |
 | `400` | Invalid request body |
 | `401` | IBM Verify authentication failure |
+| `403` | Subject's groups don't entitle the requested scope (local authz gate) |
 | `500` | Token exchange error |
 | `503` | IBM Verify unreachable |
 
@@ -370,6 +391,15 @@ Click **Send**. You should receive a `200 OK` with the exchanged access token in
 
 ### Error scenarios
 
+#### Authorization denied (403)
+
+When the `subject_token`'s `groups` claim doesn't entitle the requested
+scope (e.g. a `["readonly"]` user requesting `users.write`):
+
+```json
+{"detail": "user groups ['readonly'] are not authorized for scope 'users.write' (requires one of ['admin'])"}
+```
+
 #### IBM Verify authentication failure (401)
 
 ```bash
@@ -432,6 +462,7 @@ uv run pytest tests/test_routes.py -v
 │   └── routes.py       # POST /v1/identity/obo-token, GET /healthz
 ├── verify/
 │   ├── verify_client.py # IBMVerifyClient (HTTP OBO token exchange)
+│   ├── authorization.py # Pre-exchange groups-vs-scope authz gate
 │   └── obo_broker.py    # OBOBroker (exchange_obo_token)
 ├── models/
 │   └── schemas.py      # Request/response schemas

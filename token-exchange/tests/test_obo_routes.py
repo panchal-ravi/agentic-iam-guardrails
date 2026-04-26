@@ -11,6 +11,7 @@ from api.main import app
 from exceptions.errors import (
     CacheError,
     VerifyAuthenticationError,
+    VerifyAuthorizationError,
     VerifyTokenExchangeError,
 )
 from verify.obo_broker import OBOTokenResult
@@ -58,6 +59,19 @@ class TestExchangeOBOToken:
 
         assert resp.status_code == 200
         assert resp.json()["cached"] is True
+
+    async def test_authz_failure_returns_403(self, async_client):
+        with patch(
+            "api.routes._obo_broker.exchange_obo_token",
+            side_effect=VerifyAuthorizationError(
+                "user groups ['readonly'] are not authorized for scope 'users.write'"
+            ),
+        ):
+            async with async_client as client:
+                resp = await client.post("/v1/identity/obo-token", json=_OBO_PAYLOAD)
+
+        assert resp.status_code == 403
+        assert "not authorized" in resp.json()["detail"]
 
     async def test_auth_failure_returns_401(self, async_client):
         with patch(

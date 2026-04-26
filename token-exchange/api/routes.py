@@ -1,4 +1,5 @@
 import requests
+import structlog
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -8,6 +9,7 @@ from exceptions.errors import (
     VaultAuthenticationError,
     VaultTokenGenerationError,
     VerifyAuthenticationError,
+    VerifyAuthorizationError,
     VerifyTokenExchangeError,
 )
 from app_logging.logger import get_logger
@@ -17,7 +19,7 @@ from models.schemas import (
     TokenRequest,
     TokenResponse,
 )
-from verify.obo_broker import OBOBroker
+from verify.obo_broker import OBOBroker, claim_from_token
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -71,6 +73,10 @@ async def exchange_obo_token(
     request: Request, body: OBOTokenRequest
 ) -> OBOTokenResponse:
     """Exchange subject_token + actor_token for an IBM Verify OBO access token."""
+    structlog.contextvars.bind_contextvars(
+        preferred_username=claim_from_token(body.subject_token, "preferred_username"),
+        agent_id=claim_from_token(body.actor_token, "agent_id"),
+    )
     try:
         result = _obo_broker.exchange_obo_token(
             subject_token=body.subject_token,
@@ -81,6 +87,10 @@ async def exchange_obo_token(
             access_token=result.access_token,
             cached=result.cached,
         )
+
+    except VerifyAuthorizationError as exc:
+        logger.warning("obo_token_exchange_authz_denied", error=str(exc))
+        return JSONResponse(status_code=403, content={"detail": str(exc)})
 
     except VerifyAuthenticationError as exc:
         logger.warning("obo_token_exchange_auth_failure", error=str(exc))
