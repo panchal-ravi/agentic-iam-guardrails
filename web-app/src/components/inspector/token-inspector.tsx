@@ -14,7 +14,7 @@ interface SubjectData {
 
 interface AgentTokenData {
   actor_token: string;
-  obo_token: string;
+  obo_token: string | null;
 }
 
 interface Props {
@@ -82,6 +82,11 @@ export function TokenInspector({ refreshKey }: Props) {
 
   const actorClaims = agentTokens?.actor_token ? decodeJwtPayload(agentTokens.actor_token) : null;
   const oboClaims = agentTokens?.obo_token ? decodeJwtPayload(agentTokens.obo_token) : null;
+  // Distinguish "no response yet" (loading / error) from "broker returned no
+  // OBO yet" (200 with obo_token=null) — only the latter renders the
+  // explicit "Not available" hint in the OBO accordion.
+  const oboUnavailable =
+    !agentTokensError && agentTokens != null && !agentTokens.obo_token;
 
   const items: Array<{
     id: TokenId;
@@ -115,8 +120,14 @@ export function TokenInspector({ refreshKey }: Props) {
       subtitle: 'on-behalf-of exchange',
       body: agentTokensError ? (
         <p className="inspector__error">{agentTokensError}</p>
+      ) : oboUnavailable ? (
+        <p className="inspector__placeholder">Not available</p>
       ) : (
-        <TokenClaims claims={oboClaims} rawToken={agentTokens?.obo_token} showRawToken />
+        <TokenClaims
+          claims={oboClaims}
+          rawToken={agentTokens?.obo_token ?? undefined}
+          showRawToken
+        />
       ),
     },
   ];

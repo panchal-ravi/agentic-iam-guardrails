@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-mcp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-mcp
+  template:
+    metadata:
+      annotations:
+        consul.hashicorp.com/connect-inject: "true"
+        consul.hashicorp.com/enable-metrics-merging: 'false'
+      labels:
+        app: user-mcp
+    spec:
+      serviceAccountName: user-mcp
+      enableServiceLinks: false
+      containers:
+        - name: user-mcp
+          image: panchalravi/agentguard-user-mcp:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+          volumeMounts:
+            - name: user-mcp-env
+              mountPath: /app/.env
+              subPath: .env
+              readOnly: true
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "128Mi"
+              cpu: "128m"
+      volumes:
+        - name: user-mcp-env
+          secret:
+            secretName: user-mcp-env
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-mcp
+spec:
+  selector:
+    app: user-mcp
+  ports:
+    - port: 8090
+      targetPort: 8090
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: user-mcp

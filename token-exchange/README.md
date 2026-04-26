@@ -1,8 +1,23 @@
 # Identity Broker
 
-A Python-based identity broker that performs an **IBM Verify on-behalf-of (OBO) token exchange** — takes a `subject_token` + `actor_token` and returns an IBM Verify access token on behalf of the subject.
+A Python-based identity broker that performs an **IBM Verify on-behalf-of (OBO) token exchange** — takes a `subject_token` + `actor_token` + `scope` and returns an IBM Verify access token on behalf of the subject, carrying *only* the requested scopes.
 
-Exposes the OBO flow as a FastAPI REST service with in-memory TTL caching.
+Exposes the OBO flow as a FastAPI REST service with in-memory TTL caching keyed by `(subject_token, actor_token, normalized_scope)`. Different scope sets for the same caller never share a cache entry.
+
+### Per-tool scoped OBO flow
+
+`ai-agent` no longer exchanges one OBO per request. It calls
+`POST /v1/identity/obo-token` once per tool invocation, sending the scope set
+that the tool itself declares (e.g. `users.read` for read tools,
+`users.write` for create/update/delete). The broker forwards `scope`
+verbatim to IBM Verify (RFC 8693 `scope` parameter); a token issued for
+`users.read` can never authorize a `users.write` tool downstream.
+
+Each call emits one `event=verify_obo_token_exchange` log line with
+`request_id`, `cache_hit`, `scope`, `duration_ms`, and a `[user=<preferred_username>
+agent=<agent_id>] OBO token exchange (cache hit|issued by IBM Verify) for
+scope='<scope>'` message — enough on its own to trace the per-tool flow
+across all three services.
 
 ## Architecture
 
@@ -248,6 +263,7 @@ Exchange a `subject_token` + `actor_token` for an IBM Verify access token on beh
 |---|---|---|
 | `subject_token` | string | Caller's access token (JWT) — the identity to act on behalf of |
 | `actor_token` | string | Token identifying the acting service |
+| `scope` | string | Required, non-empty. Space-separated OAuth scopes (RFC 8693 `scope`) to request on the OBO. Forwarded verbatim to IBM Verify; also part of the cache key. |
 
 **Response body:**
 
@@ -291,7 +307,8 @@ curl -X POST http://localhost:8080/v1/identity/obo-token \
   -H "Content-Type: application/json" \
   -d '{
     "subject_token": "<redacted-subject-token>",
-    "actor_token": "<redacted-actor-token>"
+    "actor_token": "<redacted-actor-token>",
+    "scope": "users.read"
   }'
 ```
 
@@ -329,7 +346,8 @@ open http://localhost:8080/docs
 ```json
 {
   "subject_token": "<redacted-subject-token>",
-  "actor_token": "<redacted-actor-token>"
+  "actor_token": "<redacted-actor-token>",
+  "scope": "users.read"
 }
 ```
 
@@ -359,7 +377,8 @@ curl -X POST http://localhost:8080/v1/identity/obo-token \
   -H "Content-Type: application/json" \
   -d '{
     "subject_token": "<redacted-subject-token>",
-    "actor_token": "<redacted-invalid-actor-token>"
+    "actor_token": "<redacted-invalid-actor-token>",
+    "scope": "users.read"
   }'
 ```
 
@@ -373,12 +392,13 @@ curl -X POST http://localhost:8080/v1/identity/obo-token \
 curl -X POST http://localhost:8080/v1/identity/obo-token \
   -H "Content-Type: application/json" \
   -d '{
-    "subject_token": "<redacted-subject-token>"
+    "subject_token": "<redacted-subject-token>",
+    "actor_token": "<redacted-actor-token>"
   }'
 ```
 
 ```json
-{"detail": [{"msg": "Field required", "loc": ["body", "actor_token"]}]}
+{"detail": [{"msg": "Field required", "loc": ["body", "scope"]}]}
 ```
 
 #### IBM Verify unreachable (503)

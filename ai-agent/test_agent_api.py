@@ -70,10 +70,21 @@ class FakeTool:
 
 
 class FakeBoundLLM:
-    def __init__(self):
-        self.bound = FakeToolBoundLLM()
+    def __init__(self, bound: "FakeToolBoundLLM | None" = None):
+        # When *bound* is provided, every bind_tools call returns that exact
+        # instance (tests inspect its state). Otherwise a fresh
+        # FakeToolBoundLLM is minted per bind_tools call so request state
+        # doesn't leak across tests when the runtime is built per-request.
+        self._fixed = bound
+        self.bound: "FakeToolBoundLLM | None" = bound
+        self.last_bound_tool_names: list[str] = []
 
     def bind_tools(self, tools):
+        self.last_bound_tool_names = [getattr(t, "name", None) for t in tools]
+        if self._fixed is not None:
+            self.bound = self._fixed
+        else:
+            self.bound = FakeToolBoundLLM()
         return self.bound
 
 
@@ -131,11 +142,16 @@ def isolate_runtime(tmp_path, monkeypatch):
     monkeypatch.setattr(agent_api.SETTINGS, "bypass_auth_token_exchange", False)
 
     agent_api.app.state.settings = agent_api.SETTINGS
-    agent_api.app.state.agent_runtime = AgentRuntime(
-        llm_with_tools=FakeToolBoundLLM(),
-        logger=agent_api.LOGGER,
-        tool_registry={"shell": tools.shell},
-    )
+    # Default: runtime is built per request (None signals build-on-demand).
+    # Tests that need a custom tool registry override this directly.
+    agent_api.app.state.agent_runtime = None
+    agent_api.app.state.llm = FakeBoundLLM()
+
+    # Discovery happens once at startup; in tests we never run lifespan, so
+    # seed the cached templates as empty. Tests that need MCP tools can set
+    # this directly on app.state.
+    agent_api.app.state.mcp_template_tools = []
+
     agent_api.app.state.token_service = OboTokenService(
         settings=agent_api.SETTINGS,
         logger=agent_api.LOGGER,
@@ -231,15 +247,7 @@ def test_old_chat_route_is_removed():
 def test_request_id_header_is_preserved_and_propagated(monkeypatch):
     client = TestClient(agent_api.app)
     access_token = _jwt_with_expiry(300)
-    obo_token = _jwt_with_expiry(600)
     request_id = "request-from-header"
-    exchange_calls = []
-
-    def fake_exchange(subject_token, actor_token, request_id):
-        exchange_calls.append(request_id)
-        return obo_token, time.time() + 600
-
-    monkeypatch.setattr(agent_api.app.state.token_service, "perform_token_exchange", fake_exchange)
 
     response = client.post(
         "/v1/agent/query",
@@ -252,7 +260,6 @@ def test_request_id_header_is_preserved_and_propagated(monkeypatch):
 
     assert response.status_code == 200
     assert response.headers["X-Request-ID"] == request_id
-    assert exchange_calls == [request_id]
 
 
 def test_request_id_is_generated_when_header_is_missing(monkeypatch):
@@ -262,7 +269,7 @@ def test_request_id_is_generated_when_header_is_missing(monkeypatch):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (_jwt_with_expiry(600), time.time() + 600),
     )
 
     response = client.post(
@@ -277,79 +284,65 @@ def test_request_id_is_generated_when_header_is_missing(monkeypatch):
 
 
 def test_obo_token_is_cached_between_requests(monkeypatch):
-    client = TestClient(agent_api.app)
+    """Two resolve_token calls for the same scope set hit the cache once.
+
+    Per-call OBO exchange now happens inside the scoped-tool wrapper rather
+    than at request entry, so we exercise the cache directly via the token
+    service — the surface that scoped-tool wrappers depend on.
+    """
     access_token = _jwt_with_expiry(300)
     obo_token = _jwt_with_expiry(600)
-    exchange_calls = []
+    exchange_calls: list[str] = []
 
-    def fake_exchange(subject_token, actor_token, request_id):
-        exchange_calls.append(
-            {
-                "subject_token": subject_token,
-                "actor_token": actor_token,
-                "request_id": request_id,
-            }
-        )
+    def fake_exchange(subject_token, actor_token, request_id, scope):
+        exchange_calls.append(scope)
         return obo_token, time.time() + 600
 
     monkeypatch.setattr(agent_api.app.state.token_service, "perform_token_exchange", fake_exchange)
 
-    first_response = client.post(
-        "/v1/agent/query",
-        headers={"Authorization": f"Bearer {access_token}"},
-        json={"messages": [{"role": "user", "content": "hello"}]},
+    first = agent_api.app.state.token_service.resolve_token(
+        subject_token=access_token, request_id="r1", scopes=["users.read"]
     )
-    second_response = client.post(
-        "/v1/agent/query",
-        headers={"Authorization": f"Bearer {access_token}"},
-        json={"messages": [{"role": "user", "content": "hello again"}]},
+    second = agent_api.app.state.token_service.resolve_token(
+        subject_token=access_token, request_id="r2", scopes=["users.read"]
     )
 
-    assert first_response.status_code == 200
-    assert second_response.status_code == 200
-    assert first_response.text == "streamed output"
-    assert second_response.text == "streamed output"
-    assert len(exchange_calls) == 1
+    assert first == second == obo_token
+    assert exchange_calls == ["users.read"]
 
 
 def test_cached_tokens_can_be_retrieved_via_endpoint(monkeypatch):
+    """/v1/agent/tokens returns the cached read-scope OBO once seeded."""
     client = TestClient(agent_api.app)
     access_token = _jwt_with_expiry(300)
     obo_token = _jwt_with_expiry(600)
-    exchange_calls = []
 
-    def fake_exchange(subject_token, actor_token, request_id):
-        exchange_calls.append(
-            {
-                "subject_token": subject_token,
-                "actor_token": actor_token,
-                "request_id": request_id,
-            }
-        )
+    def fake_exchange(subject_token, actor_token, request_id, scope):
         return obo_token, time.time() + 600
 
     monkeypatch.setattr(agent_api.app.state.token_service, "perform_token_exchange", fake_exchange)
 
-    query_response = client.post(
-        "/v1/agent/query",
-        headers={"Authorization": f"Bearer {access_token}"},
-        json={"messages": [{"role": "user", "content": "hello"}]},
+    # Seed the cache with the same scope the tokens endpoint surfaces.
+    agent_api.app.state.token_service.resolve_token(
+        subject_token=access_token,
+        request_id="seed",
+        scopes=agent_api.TOKENS_ENDPOINT_REPRESENTATIVE_SCOPE,
     )
+
     token_response = client.get(
         "/v1/agent/tokens",
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
-    assert query_response.status_code == 200
     assert token_response.status_code == 200
     assert token_response.json() == {
         "obo_token": obo_token,
         "actor_token": "actor-token",
     }
-    assert len(exchange_calls) == 1
 
 
-def test_tokens_endpoint_returns_404_on_cache_miss(monkeypatch):
+def test_tokens_endpoint_returns_actor_with_null_obo_on_cache_miss(monkeypatch):
+    """Cache miss must not block the actor token from being surfaced."""
     client = TestClient(agent_api.app)
     access_token = _jwt_with_expiry(300)
 
@@ -363,10 +356,24 @@ def test_tokens_endpoint_returns_404_on_cache_miss(monkeypatch):
         headers={"Authorization": f"Bearer {access_token}"},
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 200
     assert response.json() == {
-        "error": "token_not_found",
-        "message": "No cached OBO token found for the provided bearer token.",
+        "actor_token": "actor-token",
+        "obo_token": None,
+    }
+
+
+def test_tokens_endpoint_returns_actor_in_bypass_mode(monkeypatch):
+    """Bypass mode also returns the actor token; OBO is null."""
+    client = TestClient(agent_api.app)
+    monkeypatch.setattr(agent_api.app.state.settings, "bypass_auth_token_exchange", True)
+
+    response = client.get("/v1/agent/tokens")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "actor_token": "actor-token",
+        "obo_token": None,
     }
 
 
@@ -405,6 +412,7 @@ def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch, caplog):
             settings=agent_api.SETTINGS,
             logger=agent_api.LOGGER,
             request_id="request-1",
+            scope="users.read",
         )
 
     assert obo_token
@@ -414,6 +422,7 @@ def test_token_exchange_posts_subject_and_actor_tokens(monkeypatch, caplog):
         "payload": {
             "subject_token": access_token,
             "actor_token": "actor-token",
+            "scope": "users.read",
         },
         "headers": {
             "accept": "application/json",
@@ -444,7 +453,7 @@ def test_read_request_does_not_trigger_fallback_shell(monkeypatch):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (_jwt_with_expiry(600), time.time() + 600),
     )
 
     response = client.post(
@@ -466,7 +475,7 @@ def test_streaming_response_is_logged_with_agent_text(monkeypatch, caplog):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (_jwt_with_expiry(600), time.time() + 600),
     )
 
     with caplog.at_level(logging.INFO, logger="agent_api"):
@@ -546,7 +555,7 @@ def test_multi_round_tool_calls_are_dispatched_in_sequence(monkeypatch, caplog):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (_jwt_with_expiry(600), time.time() + 600),
     )
 
     with caplog.at_level(logging.INFO, logger="agent_api"):
@@ -612,7 +621,7 @@ def test_non_shell_tool_call_is_executed_through_runtime_registry(monkeypatch):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (_jwt_with_expiry(600), time.time() + 600),
     )
 
     response = client.post(
@@ -654,7 +663,7 @@ def test_shell_tool_result_is_logged(monkeypatch, caplog):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (_jwt_with_expiry(600), time.time() + 600),
     )
     fake_shell = FakeTool(
         "exit_code: 0\nstdout:\n-rw-r--r-- agent_runtime.py\nstderr:\n"
@@ -735,7 +744,7 @@ def test_agent_request_started_is_logged_with_identity(monkeypatch, caplog):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (obo_token, time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (obo_token, time.time() + 600),
     )
 
     with caplog.at_level(logging.INFO, logger="agent_api"):
@@ -776,7 +785,7 @@ def test_response_sent_includes_identity_and_user_message(monkeypatch, caplog):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (obo_token, time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (obo_token, time.time() + 600),
     )
 
     with caplog.at_level(logging.INFO, logger="agent_api"):
@@ -840,7 +849,7 @@ def test_demoted_events_are_not_emitted_at_info(monkeypatch, caplog):
     monkeypatch.setattr(
         agent_api.app.state.token_service,
         "perform_token_exchange",
-        lambda subject_token, actor_token, request_id: (_jwt_with_expiry(600), time.time() + 600),
+        lambda subject_token, actor_token, request_id, scope: (_jwt_with_expiry(600), time.time() + 600),
     )
 
     with caplog.at_level(logging.INFO, logger="agent_api"):

@@ -55,3 +55,28 @@ variable "vault_public_addr" {
   description = "Vault public address"
   type        = string
 }
+
+variable "verify_base_url" {
+  description = "IBM Verify base URL used as oidc_discovery_url and bound_issuer for the user-mcp JWT auth backend"
+  type        = string
+  default     = "https://verify-vault-demo.verify.ibm.com"
+}
+
+variable "postgres_admin_password" {
+  description = "Password for the Postgres admin user that Vault uses to manage dynamic credentials. Demo default; rotate out-of-band in production."
+  type        = string
+  default     = "vault_password_123"
+  sensitive   = true
+}
+
+variable "postgres_storage_class" {
+  description = "Storage class for the Postgres PersistentVolumeClaim"
+  type        = string
+  default     = "gp2"
+}
+
+variable "postgres_storage_size" {
+  description = "Size of the Postgres PersistentVolumeClaim"
+  type        = string
+  default     = "5Gi"
+}

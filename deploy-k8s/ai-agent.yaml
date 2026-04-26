@@ -46,6 +46,8 @@ spec:
               value: http://token-exchange.virtual.consul/v1/identity/obo-token
             - name: ACTOR_TOKEN_PATH
               value: /vault/secrets/actor-token
+            - name: USER_MCP_URL
+              value: http://user-mcp.virtual.consul/mcp
           volumeMounts:
             - name: app-env
               mountPath: /app/.env

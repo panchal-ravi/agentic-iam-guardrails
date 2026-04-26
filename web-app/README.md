@@ -44,6 +44,9 @@ App runs at <http://localhost:8501>.
 | `IBM_VERIFY_REDIRECT_URI` | yes | — | e.g. `http://localhost:8501/api/auth/callback` |
 | `IBM_VERIFY_SCOPES` | no | `openid profile email Agent.Invoke` | OIDC scopes |
 | `AI_AGENT_API_URL` | no | `""` | base URL for the agent backend |
+| `AI_AGENT_DNS_RETRY_ATTEMPTS` | no | `3` | max attempts for transient DNS/connect failures to agent upstream |
+| `AI_AGENT_DNS_RETRY_BASE_DELAY_MS` | no | `150` | initial retry backoff delay in milliseconds |
+| `AI_AGENT_DNS_RETRY_MAX_DELAY_MS` | no | `1000` | cap for exponential retry backoff delay in milliseconds |
 | `LOG_LEVEL` | no | `info` | pino log level |
 | `LOG_SERVICE_NAME` | no | `verify-vault-web-app` | `service` field in logs |
 | `LOG_ENVIRONMENT` | no | `development` | `environment` field in logs |

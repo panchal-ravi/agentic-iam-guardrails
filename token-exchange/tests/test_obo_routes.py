@@ -27,7 +27,11 @@ def async_client():
     return AsyncClient(transport=transport, base_url="http://test")
 
 
-_OBO_PAYLOAD = {"subject_token": "eyJ.subject.token", "actor_token": "eyJ.actor.token"}
+_OBO_PAYLOAD = {
+    "subject_token": "eyJ.subject.token",
+    "actor_token": "eyJ.actor.token",
+    "scope": "users.read",
+}
 
 
 class TestExchangeOBOToken:
@@ -103,4 +107,24 @@ class TestExchangeOBOToken:
     async def test_missing_actor_token_returns_422(self, async_client):
         async with async_client as client:
             resp = await client.post("/v1/identity/obo-token", json={"subject_token": "eyJ.subject"})
+        assert resp.status_code == 422
+
+    async def test_missing_scope_returns_422(self, async_client):
+        async with async_client as client:
+            resp = await client.post(
+                "/v1/identity/obo-token",
+                json={"subject_token": "eyJ.subject", "actor_token": "eyJ.actor"},
+            )
+        assert resp.status_code == 422
+
+    async def test_empty_scope_returns_422(self, async_client):
+        async with async_client as client:
+            resp = await client.post(
+                "/v1/identity/obo-token",
+                json={
+                    "subject_token": "eyJ.subject",
+                    "actor_token": "eyJ.actor",
+                    "scope": "",
+                },
+            )
         assert resp.status_code == 422

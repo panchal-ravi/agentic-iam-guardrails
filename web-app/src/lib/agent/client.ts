@@ -61,6 +61,69 @@ function extractRootCause(err: unknown): unknown {
   return current;
 }
 
+export interface AgentFetchRetryOptions {
+  maxAttempts: number;
+  baseDelayMs: number;
+  maxDelayMs: number;
+}
+
+const RETRYABLE_NETWORK_ERROR_MARKERS = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'UND_ERR_CONNECT_TIMEOUT'];
+
+export function isRetryableAgentNetworkError(err: unknown): boolean {
+  const rootCause = extractRootCause(err);
+  const source = `${String(err)} ${rootCause ? String(rootCause) : ''}`;
+  return RETRYABLE_NETWORK_ERROR_MARKERS.some((marker) => source.includes(marker));
+}
+
+export function computeRetryDelayMs(
+  retryNumber: number,
+  options: AgentFetchRetryOptions,
+  randomValue: number = Math.random(),
+): number {
+  if (retryNumber < 1) return 0;
+  const exponentialDelay = options.baseDelayMs * 2 ** (retryNumber - 1);
+  const cappedDelay = Math.min(options.maxDelayMs, exponentialDelay);
+  const jitter = Math.floor(Math.max(0, cappedDelay * 0.2) * Math.min(Math.max(randomValue, 0), 1));
+  return cappedDelay + jitter;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchWithRetry(
+  url: string,
+  buildInit: () => RequestInit,
+  operation: string,
+): Promise<Response> {
+  for (let attempt = 1; attempt <= agent.retry.maxAttempts; attempt++) {
+    try {
+      return await fetch(url, buildInit());
+    } catch (err) {
+      const shouldRetry = isRetryableAgentNetworkError(err);
+      const hasAttemptsLeft = attempt < agent.retry.maxAttempts;
+      if (!shouldRetry || !hasAttemptsLeft) {
+        throw err;
+      }
+      const delayMs = computeRetryDelayMs(attempt, agent.retry);
+      log.warn(
+        {
+          operation,
+          url,
+          attempt,
+          nextAttempt: attempt + 1,
+          maxAttempts: agent.retry.maxAttempts,
+          delayMs,
+          err: String(err),
+        },
+        'Retrying transient agent network failure',
+      );
+      await sleep(delayMs);
+    }
+  }
+  throw new Error(`Agent fetch exhausted retries for ${operation} at ${url}`);
+}
+
 function buildHeaders(accessToken: string): Record<string, string> {
   return buildOutboundHeaders({
     Authorization: `Bearer ${accessToken}`,
@@ -103,17 +166,21 @@ async function extractErrorBody(res: Response): Promise<string> {
 
 export async function getAgentTokens(
   accessToken: string,
-): Promise<{ actor_token: string; obo_token: string }> {
+): Promise<{ actor_token: string; obo_token: string | null }> {
   ensureConfigured();
   log.debug({ url: agent.tokensUrl }, 'Fetching agent tokens');
 
   let res: Response;
   try {
-    res = await fetch(agent.tokensUrl, {
-      method: 'GET',
-      headers: buildHeaders(accessToken),
-      signal: AbortSignal.timeout(30_000),
-    });
+    res = await fetchWithRetry(
+      agent.tokensUrl,
+      () => ({
+        method: 'GET',
+        headers: buildHeaders(accessToken),
+        signal: AbortSignal.timeout(30_000),
+      }),
+      'agent_tokens',
+    );
   } catch (err) {
     const rootCause = extractRootCause(err);
     log.error(
@@ -162,12 +229,16 @@ export async function invokeStream({
 
   let res: Response;
   try {
-    res = await fetch(agent.queryUrl, {
-      method: 'POST',
-      headers: buildHeaders(accessToken),
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(310_000),
-    });
+    res = await fetchWithRetry(
+      agent.queryUrl,
+      () => ({
+        method: 'POST',
+        headers: buildHeaders(accessToken),
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(310_000),
+      }),
+      'agent_query_stream',
+    );
   } catch (err) {
     const rootCause = extractRootCause(err);
     log.error(

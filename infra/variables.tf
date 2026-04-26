@@ -81,3 +81,16 @@ variable "aws_eks_cluster_service_cidr" {
   type        = string
   default     = "172.20.0.0/18"
 }
+
+variable "verify_base_url" {
+  description = "IBM Verify base URL used by the user-mcp Vault JWT auth backend"
+  type        = string
+  default     = "https://verify-vault-demo.verify.ibm.com"
+}
+
+variable "postgres_admin_password" {
+  description = "Password for the in-cluster Postgres admin user; consumed by the Vault DB engine and the postgresql provider"
+  type        = string
+  default     = "vault_password_123"
+  sensitive   = true
+}

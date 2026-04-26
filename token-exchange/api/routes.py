@@ -75,6 +75,7 @@ async def exchange_obo_token(
         result = _obo_broker.exchange_obo_token(
             subject_token=body.subject_token,
             actor_token=body.actor_token,
+            scope=body.scope,
         )
         return OBOTokenResponse(
             access_token=result.access_token,

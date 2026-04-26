@@ -60,7 +60,9 @@ class TestLogging:
         assert record["level"] == "info"
 
     def test_configure_logging_extracts_uvicorn_access_fields(self, capsys):
-        logger_module.configure_logging("INFO")
+        # Access records are downgraded to DEBUG; configure logging at DEBUG
+        # so the record is actually emitted, then verify its parsed shape.
+        logger_module.configure_logging("DEBUG")
 
         logging.getLogger("uvicorn.access").info(
             '%s - "%s %s HTTP/%s" %d',
@@ -75,11 +77,29 @@ class TestLogging:
         record = json.loads(output)
 
         assert record["logger"] == "uvicorn.access"
+        # The downgrade filter rewrites the record's level before render.
+        assert record["level"] == "debug"
         assert record["client_addr"] == "203.0.113.10:50000"
         assert record["http_method"] == "GET"
         assert record["http_path"] == "/healthz"
         assert record["http_version"] == "1.1"
         assert record["status_code"] == 200
+
+    def test_uvicorn_access_records_are_suppressed_at_info(self, capsys):
+        logger_module.configure_logging("INFO")
+
+        logging.getLogger("uvicorn.access").info(
+            '%s - "%s %s HTTP/%s" %d',
+            "203.0.113.10:50000",
+            "GET",
+            "/healthz",
+            "1.1",
+            200,
+        )
+
+        # Nothing emitted because the record was downgraded to DEBUG and the
+        # root logger is at INFO.
+        assert capsys.readouterr().out == ""
 
     def test_bind_request_context_includes_http_metadata(self):
         structlog.contextvars.clear_contextvars()

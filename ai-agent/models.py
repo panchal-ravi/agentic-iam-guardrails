@@ -13,5 +13,8 @@ class ChatRequest(BaseModel):
 
 
 class AgentTokensResponse(BaseModel):
-    obo_token: str
+    # actor_token is read from the agent's local file and is therefore always
+    # available; obo_token is null when no OBO has been exchanged yet (the
+    # agent only exchanges per tool call now) or in bypass mode.
     actor_token: str
+    obo_token: str | None = None

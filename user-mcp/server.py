@@ -54,6 +54,7 @@ app = JwtAuthMiddleware(
     validator=_VALIDATOR,
     bypass_auth=SETTINGS.bypass_auth,
     logger=logging.getLogger("user_mcp.auth"),
+    allow_unauth_discovery=SETTINGS.allow_unauth_discovery,
 )
 
 

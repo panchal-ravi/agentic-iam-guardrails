@@ -71,3 +71,17 @@ spec:
     - name: ai-agent
       action: allow
       namespace: default
+---
+apiVersion: consul.hashicorp.com/v1alpha1
+kind: ServiceIntentions
+metadata:
+  name: user-mcp
+  namespace: default
+spec:
+  destination:
+    name: user-mcp
+    namespace: default
+  sources:
+    - name: ai-agent
+      action: allow
+      namespace: default

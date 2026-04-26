@@ -69,7 +69,7 @@ def test_validate_accepts_valid_token(rsa_keys):
             "iat": now,
             "exp": now + 300,
             "preferred_username": "alice@example.com",
-            "agent_id": "agent-42",
+            "actor": {"agent_id": "agent-42"},
             "scope": "users.read users.write",
             "sub": "user-1",
         },
@@ -156,12 +156,18 @@ def test_extract_identity_handles_scp_array():
     identity = extract_identity(
         {
             "preferred_username": "bob",
-            "agent_id": "agent-9",
+            "actor": {"agent_id": "agent-9"},
             "scp": ["users.read", "users.write"],
             "sub": "user-2",
         }
     )
     assert identity["scope"] == "users.read users.write"
+    assert identity["agent_id"] == "agent-9"
+
+
+def test_extract_identity_handles_missing_actor():
+    identity = extract_identity({"preferred_username": "bob"})
+    assert identity["agent_id"] is None
 
 
 def test_extract_identity_handles_string_scope():

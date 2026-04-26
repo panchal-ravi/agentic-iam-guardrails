@@ -5,6 +5,7 @@ import json
 import pytest
 from fastmcp import Client, FastMCP
 
+from auth.context import bind_request_identity, reset_request_identity
 from storage.file_repo import FileUserRepository
 from tools.users import register_tools
 
@@ -15,7 +16,28 @@ async def mcp_with_repo(users_file):
     await repo.startup()
     mcp = FastMCP(name="user-mcp-test")
     register_tools(mcp, repo)
-    return mcp
+    # In real requests, JwtAuthMiddleware binds the OBO scope from the JWT.
+    # The in-memory FastMCP Client used by these tests bypasses that middleware,
+    # so we bind a full-scope identity here to mirror an authenticated caller.
+    tokens = bind_request_identity(token=None, scope="users.read users.write")
+    try:
+        yield mcp
+    finally:
+        reset_request_identity(tokens)
+
+
+@pytest.fixture
+async def mcp_read_only(users_file):
+    """Same MCP server, but the caller's OBO grants only `users.read`."""
+    repo = FileUserRepository(file_path=users_file)
+    await repo.startup()
+    mcp = FastMCP(name="user-mcp-test-readonly")
+    register_tools(mcp, repo)
+    tokens = bind_request_identity(token=None, scope="users.read")
+    try:
+        yield mcp
+    finally:
+        reset_request_identity(tokens)
 
 
 def _record_payload(call_result) -> dict:
@@ -39,6 +61,25 @@ async def test_list_all_users_via_mcp_client(mcp_with_repo):
 
         result = await client.call_tool("list_all_users", {})
         assert result.is_error is False
+
+
+async def test_tools_advertise_required_scopes_via_meta(mcp_with_repo):
+    """Each tool's _meta.required_scopes is the contract the agent reads to
+    pick the right OBO scope before calling it."""
+    expected = {
+        "list_all_users": ["users.read"],
+        "search_users_by_first_name": ["users.read"],
+        "create_user": ["users.write"],
+        "delete_user_by_email": ["users.write"],
+        "update_user_by_email": ["users.write"],
+    }
+    async with Client(mcp_with_repo) as client:
+        tools = await client.list_tools()
+        for tool in tools:
+            assert tool.meta is not None, f"{tool.name} missing _meta"
+            assert tool.meta.get("required_scopes") == expected[tool.name], (
+                f"{tool.name} advertised wrong scopes: {tool.meta}"
+            )
 
 
 async def test_search_users_by_first_name_via_mcp_client(mcp_with_repo):
@@ -97,3 +138,41 @@ async def test_update_user_via_mcp_client(mcp_with_repo):
             },
         )
         assert result.is_error is False
+
+
+async def test_read_only_caller_can_list(mcp_read_only):
+    async with Client(mcp_read_only) as client:
+        result = await client.call_tool("list_all_users", {})
+        assert result.is_error is False
+
+
+async def test_read_only_caller_blocked_from_create(mcp_read_only):
+    async with Client(mcp_read_only) as client:
+        with pytest.raises(Exception, match="users.write"):
+            await client.call_tool(
+                "create_user",
+                {"user": {"email": "blocked@example.com", "first_name": "Blocked"}},
+            )
+
+
+async def test_read_only_caller_blocked_from_delete(mcp_read_only):
+    async with Client(mcp_read_only) as client:
+        with pytest.raises(Exception, match="users.write"):
+            await client.call_tool(
+                "delete_user_by_email", {"email": "emma.taylor@example.com"}
+            )
+
+
+async def test_read_only_caller_blocked_from_update(mcp_read_only):
+    async with Client(mcp_read_only) as client:
+        with pytest.raises(Exception, match="users.write"):
+            await client.call_tool(
+                "update_user_by_email",
+                {
+                    "email": "noah.thompson206@example.com",
+                    "user": {
+                        "email": "noah.thompson206@example.com",
+                        "first_name": "Noah",
+                    },
+                },
+            )

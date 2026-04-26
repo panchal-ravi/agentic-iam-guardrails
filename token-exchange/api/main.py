@@ -41,7 +41,10 @@ async def correlation_id_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
         duration_ms = int((time.monotonic() - start) * 1000)
-        structlog.get_logger("api.access").info(
+        # Per-request access traces are useful for deep-dive debugging only;
+        # keep them off by default so the OBO exchange line is the dominant
+        # signal at INFO.
+        structlog.get_logger("api.access").debug(
             "request_completed",
             status_code=response.status_code,
             duration_ms=duration_ms,

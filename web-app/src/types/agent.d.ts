@@ -7,7 +7,9 @@ export interface ChatMessage {
 
 export interface AgentTokens {
   actor_token: string;
-  obo_token: string;
+  // null when no OBO has been exchanged yet (e.g. no tool call has fired
+  // since the last cache eviction) or when the broker isn't reachable.
+  obo_token: string | null;
 }
 
 export interface AgentReply {

@@ -51,8 +51,21 @@ def read_actor_token(actor_token_path: Path, logger: logging.Logger) -> str:
     return actor_token
 
 
-def build_cache_key(subject_token: str, role_name: str) -> str:
-    return hashlib.sha256(f"{subject_token}:{role_name}".encode("utf-8")).hexdigest()
+def normalize_scopes(scopes: list[str] | tuple[str, ...] | None) -> str:
+    """Return *scopes* as a deduped, sorted, single-space-joined string.
+
+    Stable across orderings so cache keys don't fragment when the same scope
+    set is requested in different orders.
+    """
+    if not scopes:
+        return ""
+    return " ".join(sorted({s for s in scopes if s}))
+
+
+def build_cache_key(subject_token: str, role_name: str, normalized_scope: str = "") -> str:
+    return hashlib.sha256(
+        f"{subject_token}:{role_name}:{normalized_scope}".encode("utf-8")
+    ).hexdigest()
 
 
 def _coerce_expiry_timestamp(raw_value: Any, field_name: str) -> float:
@@ -146,6 +159,7 @@ def perform_token_exchange(
     settings: Settings,
     logger: logging.Logger,
     request_id: str,
+    scope: str,
 ) -> tuple[str, float]:
     log_event(
         logger,
@@ -153,9 +167,14 @@ def perform_token_exchange(
         message="Calling identity broker for OBO token exchange",
         request_id=request_id,
         token_exchange_url=settings.token_exchange_url,
+        scope=scope,
     )
     payload = json.dumps(
-        {"subject_token": subject_token, "actor_token": actor_token}
+        {
+            "subject_token": subject_token,
+            "actor_token": actor_token,
+            "scope": scope,
+        }
     ).encode("utf-8")
     request = urllib.request.Request(
         settings.token_exchange_url,
@@ -244,17 +263,32 @@ class OboTokenService:
 
         return cached_value
 
-    def perform_token_exchange(self, subject_token: str, actor_token: str, request_id: str) -> tuple[str, float]:
+    def perform_token_exchange(
+        self,
+        subject_token: str,
+        actor_token: str,
+        request_id: str,
+        scope: str,
+    ) -> tuple[str, float]:
         return perform_token_exchange(
             subject_token=subject_token,
             actor_token=actor_token,
             settings=self.settings,
             logger=self.logger,
             request_id=request_id,
+            scope=scope,
         )
 
-    def get_cached_token(self, subject_token: str, request_id: str) -> str:
-        cache_key = build_cache_key(subject_token, self.settings.obo_role_name)
+    def get_cached_token(
+        self,
+        subject_token: str,
+        request_id: str,
+        scopes: list[str] | None = None,
+    ) -> str:
+        normalized_scope = normalize_scopes(scopes)
+        cache_key = build_cache_key(
+            subject_token, self.settings.obo_role_name, normalized_scope
+        )
 
         with self.lock:
             cached_entry = self._get_cached_token(cache_key)
@@ -266,6 +300,7 @@ class OboTokenService:
                     message="OBO token cache miss",
                     request_id=request_id,
                     cache_key=cache_key,
+                    scope=normalized_scope,
                 )
                 raise AppError(
                     status_code=404,
@@ -280,6 +315,7 @@ class OboTokenService:
                 message="OBO token cache hit",
                 request_id=request_id,
                 cache_key=cache_key,
+                scope=normalized_scope,
                 expiry_time=cached_entry.expiry_time,
                 obo_token_present=True,
             )
@@ -288,8 +324,29 @@ class OboTokenService:
     def read_actor_token(self) -> str:
         return read_actor_token(self.settings.actor_token_path, self.logger)
 
-    def resolve_token(self, subject_token: str, request_id: str) -> str:
-        cache_key = build_cache_key(subject_token, self.settings.obo_role_name)
+    def resolve_token(
+        self,
+        subject_token: str,
+        request_id: str,
+        scopes: list[str],
+    ) -> str:
+        """Return an OBO token for *subject_token* carrying exactly *scopes*.
+
+        Cache key is (subject_token, role_name, normalized_scope) so different
+        scope sets never share an entry — the token returned to a caller asking
+        for `users.read` will never accidentally grant `users.write`.
+        """
+        if not scopes:
+            raise AppError(
+                status_code=500,
+                error="agent_error",
+                message="resolve_token requires a non-empty scopes list.",
+            )
+
+        normalized_scope = normalize_scopes(scopes)
+        cache_key = build_cache_key(
+            subject_token, self.settings.obo_role_name, normalized_scope
+        )
 
         with self.lock:
             cached_entry = self._get_cached_token(cache_key)
@@ -301,6 +358,7 @@ class OboTokenService:
                     message="OBO token cache hit",
                     request_id=request_id,
                     cache_key=cache_key,
+                    scope=normalized_scope,
                     expiry_time=cached_entry.expiry_time,
                     obo_token_present=True,
                 )
@@ -313,12 +371,14 @@ class OboTokenService:
                 message="OBO token cache miss",
                 request_id=request_id,
                 cache_key=cache_key,
+                scope=normalized_scope,
             )
             actor_token = read_actor_token(self.settings.actor_token_path, self.logger)
             obo_token, expiry_time = self.perform_token_exchange(
                 subject_token=subject_token,
                 actor_token=actor_token,
                 request_id=request_id,
+                scope=normalized_scope,
             )
             self.cache[cache_key] = CachedToken(
                 token=obo_token,

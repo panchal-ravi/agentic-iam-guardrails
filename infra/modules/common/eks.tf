@@ -33,6 +33,14 @@ module "eks" {
       type                          = "ingress"
       source_cluster_security_group = true # Automatically uses the cluster's primary SG
     }
+    ingress_nodeports_from_vpc = {
+      description = "NodePort range for internal NLBs"
+      protocol    = "tcp"
+      from_port   = 30000
+      to_port     = 32767
+      type        = "ingress"
+      cidr_blocks = [module.vpc.vpc_cidr_block]
+    }
   }
 
   security_group_additional_rules = {

@@ -1,6 +1,35 @@
 # AI Agent
 
-This service is a FastAPI-based AI agent runtime. It accepts chat messages, validates a bearer token, exchanges that token for an on-behalf-of (OBO) token, loads user-management tools from an upstream MCP server (`user-mcp`) over the streamable-HTTP transport, optionally invokes a local `shell` tool, and streams plain-text responses back to the caller. For test environments, an env flag can bypass the incoming bearer-token requirement and skip OBO token exchange entirely.
+This service is a FastAPI-based AI agent runtime. It accepts chat messages, validates a bearer token, loads user-management tools from an upstream MCP server (`user-mcp`) over the streamable-HTTP transport once at startup, then — for each tool the LLM picks — exchanges the user's bearer token for an on-behalf-of (OBO) token carrying *only* the scopes that tool declares it needs and uses that scoped OBO to invoke the upstream tool. A local `shell` tool is also available, and plain-text responses are streamed back to the caller. For test environments, an env flag can bypass the incoming bearer-token requirement and skip OBO token exchange entirely.
+
+### Tool → scope contract (per-call OBO exchange)
+
+OBO exchange used to happen once per request, baking a fixed scope into the
+upstream client. Now it follows the tool's own contract:
+
+1. **Startup discovery (one-shot).** In the FastAPI lifespan the agent calls
+   `tools/list` against `USER_MCP_URL` with no Authorization header and caches
+   the resulting LangChain tool templates in `app.state.mcp_template_tools`.
+   This requires `USER_MCP_ALLOW_UNAUTH_DISCOVERY=true` on `user-mcp`. The
+   service-to-service channel is presumed secured at the mesh layer (Consul
+   service-intentions), so no token is needed for discovery.
+2. **Per request.** Validate the bearer; for each cached template, read its
+   `_meta.required_scopes` and wrap it (`scoped_tool.make_scoped_tool`) so the
+   wrapper closes over `(subject_token, request_id, required_scopes)`.
+3. **Per tool call (when the LLM picks a tool).** The wrapper asks
+   `OboTokenService.resolve_token(scopes=required_scopes)` for an OBO carrying
+   *only* those scopes (cached by `(subject_token, role, frozenset(scopes))`),
+   builds a transient MCP client with that OBO, and calls the upstream tool.
+4. **Defense in depth.** `user-mcp` independently re-checks the OBO scope
+   inside its tool dispatcher and returns `insufficient_scope` (403) if the
+   token doesn't satisfy the tool's contract — the agent's wrapper turns that
+   into a `ToolMessage` so the LLM can apologize / suggest alternatives.
+
+A single line traces each call: `event=scoped_tool_invoke tool=<name>
+required_scopes=<list>` at INFO. The token-exchange service emits one
+`event=verify_obo_token_exchange` line per OBO with `cache_hit`, `scope`,
+and identity prefix; `user-mcp` emits one `event=tool_invoked` line per tool
+with `required_scopes`.
 
 ## Current project structure
 
@@ -35,14 +64,13 @@ High-level request flow:
 
 1. FastAPI receives the request and assigns a request ID.
 2. The `Authorization: Bearer ...` header is validated unless bypass mode is enabled.
-3. The actor token is read from `ACTOR_TOKEN_PATH`.
-4. The service exchanges the incoming bearer token for an OBO token through `TOKEN_EXCHANGE_URL`, unless bypass mode is enabled.
-5. OBO tokens are cached in memory until expiry.
-6. A fresh MCP client is built per request against `USER_MCP_URL` (streamable-HTTP transport), forwarding the OBO token as `Authorization: Bearer ...`. The user-management tools advertised by `user-mcp` are merged with the local `shell` tool.
-7. LangChain binds the merged tool list and runs the agent flow.
-8. The response is streamed back as `text/plain`.
+3. The actor token is read from `ACTOR_TOKEN_PATH` (used as the `actor_token` in OBO exchanges, not at request entry).
+4. Each MCP tool template cached at startup is wrapped with a per-call OBO closure that captures the user's bearer token, the request ID, and the scopes that tool declares (`_meta.required_scopes`). The local `shell` tool is appended unwrapped.
+5. LangChain binds the merged tool list and runs the agent flow. Each time the LLM picks an MCP tool, the wrapper exchanges an OBO scoped to that tool only (calling `TOKEN_EXCHANGE_URL`) — unless a matching OBO is already cached. OBOs are cached per `(subject_token, role, scope-set)`.
+6. The wrapper builds a transient MCP client carrying the scoped OBO and invokes the upstream tool. `insufficient_scope` (403) responses are returned to the LLM as a `ToolMessage`.
+7. The response is streamed back as `text/plain`.
 
-At application startup a best-effort probe (`probe_mcp_tools`) is performed against `USER_MCP_URL` so misconfiguration (unreachable host, wrong path) is logged early. The probe is unauthenticated, so when `user-mcp` enforces JWT validation the probe will simply log a warning and the service will continue to start.
+At application startup the lifespan handler discovers MCP tool templates against `USER_MCP_URL` with no Authorization header and caches them in `app.state.mcp_template_tools`. `user-mcp` must run with `USER_MCP_ALLOW_UNAUTH_DISCOVERY=true` for this to succeed — the network channel is presumed secured at the mesh layer (Consul service-intentions). If discovery fails, an `mcp_discovery_failed_at_startup` warning is emitted and the service still boots; queries will run with no MCP tools until a restart succeeds.
 
 The token lookup endpoint validates the incoming `Authorization: Bearer ...` header, derives the same cache key from the access token and configured role name, and returns both the cached OBO token and the agent actor token without triggering a new token exchange.
 
@@ -63,7 +91,7 @@ Local tool (defined in `tools.py`):
 
 - `shell`: executes shell commands from the application directory.
 
-Tools fetched from `user-mcp` per request (see [`user-mcp/README.md`](../user-mcp/README.md) for full schemas):
+Tools discovered from `user-mcp` once at startup and reused across requests (see [`user-mcp/README.md`](../user-mcp/README.md) for full schemas and the per-tool scope contract):
 
 - `list_all_users`
 - `search_users_by_first_name`
@@ -95,7 +123,7 @@ USER_MCP_URL=http://localhost:8090/mcp \
 uv run uvicorn agent_api:app --host 0.0.0.0 --port 8000
 ```
 
-When the agent starts it logs an `mcp_probe_succeeded` event with the tool names discovered on `user-mcp`. If the URL is wrong or the server is unreachable, expect `mcp_probe_failed` instead — the agent still starts but every `/v1/agent/query` will fail to load tools until the URL is fixed.
+When the agent starts it logs an `mcp_discovery_completed_at_startup` event with the tool names discovered on `user-mcp`. If the URL is wrong, the server is unreachable, or `USER_MCP_ALLOW_UNAUTH_DISCOVERY` is not enabled on `user-mcp`, expect `mcp_discovery_failed_at_startup` instead — the agent still starts but `/v1/agent/query` will run with no MCP tools available until a successful restart.
 
 ## Configuration
 
@@ -108,7 +136,7 @@ The service reads environment variables from the process environment and also lo
 | `ACTOR_TOKEN_PATH` | `/vault/secrets/actor-token` | Filesystem path to the actor token |
 | `TOKEN_EXCHANGE_URL` | `http://localhost:8080/v1/identity/obo-token` | OBO token exchange endpoint |
 | `TOKEN_EXCHANGE_TIMEOUT_SECONDS` | `10` | Token exchange timeout |
-| `OBO_ROLE_NAME` | `agent-runtime` | Cache key input for OBO token reuse |
+| `OBO_ROLE_NAME` | `agent-runtime` | Cache key input for OBO token reuse (combined with subject token + scope set) |
 | `BYPASS_AUTH_TOKEN_EXCHANGE` | `false` | When `true`, `/v1/agent/query` does not require `Authorization` and skips OBO token exchange; `/v1/agent/tokens` will not return cached tokens |
 | `USER_MCP_URL` | `http://localhost:8090/mcp` | Full URL of the upstream `user-mcp` streamable-HTTP endpoint, including the mount path. Must match `USER_MCP_HOST` / `USER_MCP_PORT` / `USER_MCP_PATH` on the `user-mcp` service. |
 | `HOST` | `0.0.0.0` | Bind host |

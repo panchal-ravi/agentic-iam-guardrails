@@ -8,6 +8,7 @@ from typing import Any, Awaitable, Callable
 import jwt
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from auth.context import bind_request_identity, reset_request_identity
 from errors import AppError
 from logging_utils import bind_log_context, log_event, reset_log_context
 
@@ -17,6 +18,14 @@ _BYPASS_IDENTITY: dict[str, Any] = {
     "agent_id": "bypass",
     "scope": "",
     "sub": "bypass",
+    "raw": {},
+}
+
+_ANONYMOUS_DISCOVERY_IDENTITY: dict[str, Any] = {
+    "preferred_username": "anonymous",
+    "agent_id": "discovery",
+    "scope": "",
+    "sub": "anonymous",
     "raw": {},
 }
 
@@ -94,9 +103,11 @@ def extract_identity(claims: dict[str, Any]) -> dict[str, Any]:
             scope_claim = " ".join(str(s) for s in scp_claim)
         else:
             scope_claim = ""
+    actor_claim = claims.get("actor")
+    agent_id = actor_claim.get("agent_id") if isinstance(actor_claim, dict) else None
     return {
         "preferred_username": claims.get("preferred_username"),
-        "agent_id": claims.get("agent_id"),
+        "agent_id": agent_id,
         "scope": scope_claim,
         "sub": claims.get("sub"),
         "raw": claims,
@@ -114,10 +125,12 @@ class JwtAuthMiddleware:
         validator: JwtValidator | None,
         bypass_auth: bool,
         logger: logging.Logger,
+        allow_unauth_discovery: bool = False,
     ):
         self._app = app
         self._validator = validator
         self._bypass_auth = bypass_auth
+        self._allow_unauth_discovery = allow_unauth_discovery
         self._logger = logger
         if not bypass_auth and validator is None:
             raise ValueError(
@@ -133,14 +146,42 @@ class JwtAuthMiddleware:
 
         if self._bypass_auth:
             identity = dict(_BYPASS_IDENTITY)
-            scope.setdefault("state", {})["jwt_claims"] = identity
-            await self._dispatch_with_context(scope, receive, send, identity, request_id)
+            scope_state = scope.setdefault("state", {})
+            scope_state["jwt_claims"] = identity
+            scope_state["jwt_token"] = None
+            await self._dispatch_with_context(
+                scope, receive, send, identity, request_id, raw_token=None
+            )
             return
 
         try:
             token = _extract_bearer(scope)
             claims = self._validator.validate(token)
         except AppError as exc:
+            # Allow unauthenticated discovery requests through with an anonymous
+            # identity when the operator opts in. Real tools/call invocations
+            # are still rejected downstream by scope_check (empty scope ⇒
+            # insufficient_scope); only tools/list will succeed.
+            if (
+                self._allow_unauth_discovery
+                and exc.error == "invalid_request"
+                and exc.message == "Authorization bearer token is required."
+            ):
+                identity = dict(_ANONYMOUS_DISCOVERY_IDENTITY)
+                scope_state = scope.setdefault("state", {})
+                scope_state["jwt_claims"] = identity
+                scope_state["jwt_token"] = None
+                log_event(
+                    self._logger,
+                    "discovery_unauth_request",
+                    message="Accepting unauthenticated MCP discovery request",
+                    request_id=request_id,
+                )
+                await self._dispatch_with_context(
+                    scope, receive, send, identity, request_id, raw_token=None
+                )
+                return
+
             log_event(
                 self._logger,
                 "jwt_validation_failed",
@@ -154,8 +195,12 @@ class JwtAuthMiddleware:
             return
 
         identity = extract_identity(claims)
-        scope.setdefault("state", {})["jwt_claims"] = identity
-        await self._dispatch_with_context(scope, receive, send, identity, request_id)
+        scope_state = scope.setdefault("state", {})
+        scope_state["jwt_claims"] = identity
+        scope_state["jwt_token"] = token
+        await self._dispatch_with_context(
+            scope, receive, send, identity, request_id, raw_token=token
+        )
 
     async def _dispatch_with_context(
         self,
@@ -164,18 +209,24 @@ class JwtAuthMiddleware:
         send: Send,
         identity: dict[str, Any],
         request_id: str,
+        raw_token: str | None,
     ) -> None:
-        token = bind_log_context(
+        log_token = bind_log_context(
             request_id=request_id,
             preferred_username=identity.get("preferred_username"),
-            actor_agent_id=identity.get("agent_id"),
+            agent_id=identity.get("agent_id"),
             auth_scope=identity.get("scope"),
+        )
+        identity_tokens = bind_request_identity(
+            token=raw_token,
+            scope=identity.get("scope"),
         )
         try:
             wrapped_send = _build_request_id_send(send, request_id)
             await self._app(scope, receive, wrapped_send)
         finally:
-            reset_log_context(token)
+            reset_request_identity(identity_tokens)
+            reset_log_context(log_token)
 
 
 def _extract_bearer(scope: Scope) -> str:

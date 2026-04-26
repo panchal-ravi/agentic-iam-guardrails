@@ -105,6 +105,20 @@ def _configure_stdlib_logger(name: str, handler: logging.Handler, level: int) ->
     logger.propagate = False
 
 
+class _DowngradeToDebugFilter(logging.Filter):
+    """Rewrite every record on this logger from its native level to DEBUG.
+
+    uvicorn emits per-request access lines at INFO; we want them gone from
+    the default INFO output. Downgrading instead of dropping keeps them
+    available when the operator turns log level up to DEBUG.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.levelno = logging.DEBUG
+        record.levelname = "DEBUG"
+        return record.levelno >= logging.getLogger().getEffectiveLevel()
+
+
 def configure_logging(log_level: str = "INFO") -> None:
     """Configure JSON logging with standard fields for Loki ingestion."""
     resolved_level = getattr(logging, log_level.upper(), logging.INFO)
@@ -129,6 +143,13 @@ def configure_logging(log_level: str = "INFO") -> None:
 
     for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         _configure_stdlib_logger(logger_name, handler, resolved_level)
+
+    # uvicorn.access records always come in at INFO; downgrade to DEBUG so
+    # they don't dominate INFO output. The api.access logger is already at
+    # DEBUG via the structlog call site.
+    access_logger = logging.getLogger("uvicorn.access")
+    if not any(isinstance(f, _DowngradeToDebugFilter) for f in access_logger.filters):
+        access_logger.addFilter(_DowngradeToDebugFilter())
 
     structlog.configure(
         processors=[

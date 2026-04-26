@@ -59,7 +59,7 @@ export function normalizeMessageContent(content: string): string {
 
 export function normalizeAgentTokensPayload(
   data: unknown,
-): { actor_token: string; obo_token: string } | null {
+): { actor_token: string; obo_token: string | null } | null {
   if (typeof data === 'string') {
     const stripped = data.trim();
     if (!stripped) return null;
@@ -77,7 +77,9 @@ export function normalizeAgentTokensPayload(
   if (actor !== undefined || obo !== undefined) {
     return {
       actor_token: actor == null ? '' : String(actor),
-      obo_token: obo == null ? '' : String(obo),
+      // Preserve null/missing OBO so the UI can render "Not available"
+      // instead of treating an empty string as a (zero-length) JWT.
+      obo_token: obo == null ? null : String(obo),
     };
   }
 

@@ -19,9 +19,14 @@ def _import_multi_server_client():
     return MultiServerMCPClient
 
 
-async def fetch_mcp_tools(user_mcp_url: str, obo_token: str | None) -> list[Any]:
+async def fetch_mcp_tools(
+    user_mcp_url: str,
+    obo_token: str | None,
+    request_id: str,
+) -> list[Any]:
     """Build a fresh MCP client whose streamable-HTTP requests carry the
-    given OBO bearer (if any) and return the LangChain tool wrappers.
+    given OBO bearer (if any) and the caller's X-Request-ID, then return
+    the LangChain tool wrappers.
 
     A fresh client per request avoids cross-thread ContextVar propagation
     problems when LangChain's sync `tool.invoke()` bridges into the
@@ -29,7 +34,7 @@ async def fetch_mcp_tools(user_mcp_url: str, obo_token: str | None) -> list[Any]
     """
     MultiServerMCPClient = _import_multi_server_client()
 
-    headers: dict[str, str] = {}
+    headers: dict[str, str] = {"X-Request-ID": request_id}
     if obo_token:
         headers["Authorization"] = f"Bearer {obo_token}"
 
@@ -43,56 +48,72 @@ async def fetch_mcp_tools(user_mcp_url: str, obo_token: str | None) -> list[Any]
         }
     )
     tools = await client.get_tools()
-    log_event(
-        LOGGER,
-        "mcp_tools_loaded",
-        level=logging.DEBUG,
-        message="Loaded MCP tools for request",
-        user_mcp_url=user_mcp_url,
-        authorization_present=bool(obo_token),
-        tool_count=len(tools),
-        tool_names=[getattr(t, "name", None) for t in tools],
-    )
+    for tool in tools:
+        tool_name = getattr(tool, "name", None)
+        log_event(
+            LOGGER,
+            "mcp_tool_loaded",
+            message=f"Loaded MCP tool {tool_name}",
+            request_id=request_id,
+            user_mcp_url=user_mcp_url,
+            authorization_present=bool(obo_token),
+            tool_name=tool_name,
+        )
     return list(tools)
 
 
-async def probe_mcp_tools(user_mcp_url: str) -> list[str]:
-    """Best-effort startup probe: list tool names available on user-mcp.
+def extract_required_scopes(template_tool: Any) -> list[str]:
+    """Read `_meta.required_scopes` from a langchain-mcp-adapters tool.
 
-    Used at app startup so failures (unreachable server, bad URL) surface
-    early rather than at first request. Probing without an OBO token will
-    fail when JWT validation is enforced; in that case we just log a
-    warning and continue.
+    The adapter places the upstream MCP `_meta` field under the LangChain
+    tool's `metadata["_meta"]` (see langchain_mcp_adapters.tools._convert_call_tool_result).
+    Returns an empty list if the tool didn't declare any scope contract.
     """
-    MultiServerMCPClient = _import_multi_server_client()
-    try:
-        client = MultiServerMCPClient(
-            {
-                "user-mcp": {
-                    "url": user_mcp_url,
-                    "transport": "streamable_http",
-                    "headers": {},
-                }
-            }
-        )
-        tools = await client.get_tools()
-    except Exception as exc:  # noqa: BLE001 - probe is best-effort
-        log_event(
-            LOGGER,
-            "mcp_probe_failed",
-            level=logging.WARNING,
-            message=f"Could not probe user-mcp at startup: {exc}",
-            user_mcp_url=user_mcp_url,
-        )
+    metadata = getattr(template_tool, "metadata", None) or {}
+    if not isinstance(metadata, dict):
         return []
+    meta = metadata.get("_meta") or {}
+    if not isinstance(meta, dict):
+        return []
+    scopes = meta.get("required_scopes")
+    if isinstance(scopes, list):
+        return [str(s) for s in scopes]
+    return []
 
-    names = [getattr(t, "name", None) for t in tools]
-    log_event(
-        LOGGER,
-        "mcp_probe_succeeded",
-        message="Probed user-mcp tool list at startup",
-        user_mcp_url=user_mcp_url,
-        tool_count=len(names),
-        tool_names=names,
+
+async def invoke_mcp_tool(
+    user_mcp_url: str,
+    tool_name: str,
+    args: dict,
+    obo_token: str,
+    request_id: str,
+) -> Any:
+    """Build a transient MCP client carrying *obo_token* and call a single
+    tool by name. Used by the per-call scope wrapper so each MCP tools/call
+    travels with its own narrowly-scoped OBO."""
+    MultiServerMCPClient = _import_multi_server_client()
+
+    headers: dict[str, str] = {
+        "X-Request-ID": request_id,
+        "Authorization": f"Bearer {obo_token}",
+    }
+    client = MultiServerMCPClient(
+        {
+            "user-mcp": {
+                "url": user_mcp_url,
+                "transport": "streamable_http",
+                "headers": headers,
+            }
+        }
     )
-    return [n for n in names if n]
+    tools = await client.get_tools()
+    target = next(
+        (t for t in tools if getattr(t, "name", None) == tool_name), None
+    )
+    if target is None:
+        raise RuntimeError(
+            f"MCP tool {tool_name!r} not found at {user_mcp_url}"
+        )
+    return await target.ainvoke(args)
+
+

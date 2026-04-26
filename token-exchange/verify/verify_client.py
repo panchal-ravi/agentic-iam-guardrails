@@ -32,12 +32,15 @@ class IBMVerifyClient:
         )
         self._client_id = client_id or settings.obo_client_id
 
-    def exchange_obo_token(self, subject_token: str, actor_token: str) -> dict:
+    def exchange_obo_token(
+        self, subject_token: str, actor_token: str, scope: str
+    ) -> dict:
         """Exchange *subject_token* + *actor_token* for an IBM Verify access token.
 
         Args:
             subject_token: The caller's access token (JWT) to act on behalf of.
             actor_token:   The Vault Identity JWT that identifies the acting service.
+            scope:         Space-separated OAuth scopes to request on the OBO token.
 
         Returns:
             Parsed JSON response dict from IBM Verify (contains ``access_token``,
@@ -56,6 +59,7 @@ class IBMVerifyClient:
             "subject_token": subject_token,
             "actor_token_type": _ACTOR_TOKEN_TYPE,
             "actor_token": actor_token,
+            "scope": scope,
         }
 
         logger.debug(

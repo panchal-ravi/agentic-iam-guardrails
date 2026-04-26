@@ -28,7 +28,7 @@ COPY --from=builder /app/.venv /app/.venv
 COPY auth/    ./auth/
 COPY storage/ ./storage/
 COPY tools/   ./tools/
-COPY server.py mcp_app.py config.py errors.py logging_utils.py models.py ./
+COPY server.py mcp_app.py config.py errors.py logging_utils.py models.py vault_client.py ./
 COPY users_repository.json ./
 
 ENV VIRTUAL_ENV=/app/.venv \

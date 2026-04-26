@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastmcp import FastMCP
 
+from auth.scope_check import configure_bypass
 from config import Settings
 from logging_utils import log_event
 from storage import build_repository
@@ -19,6 +20,7 @@ def build_mcp_app(settings: Settings) -> tuple[FastMCP, UserRepository]:
     user-management tools. Returns the FastMCP instance plus the repo so the
     ASGI entrypoint can drive lifespan startup/shutdown around it."""
 
+    configure_bypass(settings.bypass_auth)
     repo = build_repository(settings)
 
     @asynccontextmanager

@@ -11,6 +11,13 @@ kubectl create secret generic token-exchange-env \
 kubectl apply -f deploy-k8s/token-exchange.yaml
 ```
 
+## Deploy user-mcp service
+```
+kubectl create secret generic user-mcp-env \
+  --from-file=.env=deploy-k8s/user-mcp.env
+kubectl apply -f deploy-k8s/user-mcp.yaml
+```
+
 ## Deploy ai-agent app
 ```
 kubectl create secret generic ai-agent-env \
@@ -28,7 +35,7 @@ kubectl apply -f deploy-k8s/web-app.yaml
 ## Deploy OPA server (if testing OPA)
 ```
 kubectl create ns opa
-kubectl apply -n opa -f deploy-k8s/opa-server.yaml
+kubectl apply -n opa -f dedploy-k8s/opa-server.yaml
 
 ##Test policies are loaded
 kubectl port-forward -n opa svc/opa-service 8080:80
@@ -60,6 +67,9 @@ kubectl apply -f deploy-k8s/service-intentions.yaml
 ```
 kubectl delete secret token-exchange-env
 kubectl delete -f deploy-k8s/token-exchange.yaml
+
+kubectl delete secret user-mcp-env
+kubectl delete -f deploy-k8s/user-mcp.yaml
 
 kubectl delete secret ai-agent-env
 kubectl delete -f deploy-k8s/ai-agent.yaml

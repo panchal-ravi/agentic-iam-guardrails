@@ -55,6 +55,13 @@ def configure_logging(log_level: str) -> None:
         root_logger.addHandler(existing_handler)
 
     existing_handler.setFormatter(formatter)
+    _ensure_mcp_noise_filter(existing_handler)
+
+
+def _ensure_mcp_noise_filter(handler: logging.Handler) -> None:
+    if any(isinstance(f, MCPNoiseDowngradeFilter) for f in handler.filters):
+        return
+    handler.addFilter(MCPNoiseDowngradeFilter())
 
 
 def build_uvicorn_log_config(log_level: str) -> dict[str, Any]:
@@ -70,10 +77,16 @@ def build_uvicorn_log_config(log_level: str) -> dict[str, Any]:
                 "()": "logging_utils.UvicornAccessJsonFormatter",
             },
         },
+        "filters": {
+            "mcp_noise_downgrade": {
+                "()": "logging_utils.MCPNoiseDowngradeFilter",
+            },
+        },
         "handlers": {
             "default": {
                 "class": "logging.StreamHandler",
                 "formatter": "json",
+                "filters": ["mcp_noise_downgrade"],
                 "stream": "ext://sys.stderr",
             },
             "access": {
@@ -146,10 +159,15 @@ class JsonLogFormatter(logging.Formatter):
         payload.setdefault("method_name", record.funcName)
         payload.setdefault("line_number", record.lineno)
 
+        for context_key, context_value in _LOG_CONTEXT.get().items():
+            payload.setdefault(context_key, context_value)
+
         if record.exc_info and "exception" not in payload:
             payload["exception"] = self.formatException(record.exc_info)
         if record.stack_info and "stack" not in payload:
             payload["stack"] = self.formatStack(record.stack_info)
+
+        _apply_identity_message_prefix(payload)
 
         return json.dumps(payload, ensure_ascii=True, sort_keys=True)
 
@@ -235,20 +253,59 @@ def log_event(
         **context_fields,
         **fields,
     }
-    _apply_identity_message_prefix(payload)
     logger.log(level, json.dumps(payload, ensure_ascii=True, sort_keys=True))
 
 
+_NOISE_PREFIXES_BY_LOGGER: dict[str, tuple[str, ...]] = {
+    "mcp.server.lowlevel.server": (
+        "Processing request of type ",
+        "Created new transport with session ID",
+        "Terminating session",
+    ),
+    "mcp.server.streamable_http": (
+        "Processing request of type ",
+        "Created new transport with session ID",
+        "Terminating session",
+    ),
+    "mcp.server.streamable_http_manager": (
+        "Processing request of type ",
+        "Created new transport with session ID",
+        "Terminating session",
+    ),
+    "httpx": ("HTTP Request: ",),
+}
+
+
+class MCPNoiseDowngradeFilter(logging.Filter):
+    """Demote routine MCP transport and httpx request INFO chatter to DEBUG.
+
+    Records that match known lifecycle/request messages are rewritten to DEBUG
+    so they only surface when the root logger is itself at DEBUG. Any
+    non-matching record passes through unchanged.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        prefixes = _NOISE_PREFIXES_BY_LOGGER.get(record.name)
+        if prefixes is None:
+            return True
+        message = record.getMessage()
+        if not any(message.startswith(p) for p in prefixes):
+            return True
+        record.levelno = logging.DEBUG
+        record.levelname = "DEBUG"
+        return record.levelno >= logging.getLogger().getEffectiveLevel()
+
+
 def _apply_identity_message_prefix(payload: dict[str, Any]) -> None:
-    preferred_username = payload.pop("preferred_username", None)
-    actor_agent_id = payload.pop("actor_agent_id", None)
+    preferred_username = payload.get("preferred_username")
+    agent_id = payload.pop("agent_id", None)
     message = payload.get("message")
     if not isinstance(message, str):
         return
     identity_parts: list[str] = []
     if preferred_username:
         identity_parts.append(f"user={preferred_username}")
-    if actor_agent_id:
-        identity_parts.append(f"agent={actor_agent_id}")
+    if agent_id:
+        identity_parts.append(f"agent={agent_id}")
     if identity_parts:
-        payload["message"] = f"[{' '.join(identity_parts)}] {message}"
+        payload["message"] = f"{' '.join(identity_parts)} {message}"

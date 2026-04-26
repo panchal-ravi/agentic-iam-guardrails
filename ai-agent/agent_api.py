@@ -19,8 +19,9 @@ from logging_utils import (
     log_event,
     reset_log_context,
 )
-from mcp_client import fetch_mcp_tools, probe_mcp_tools
+from mcp_client import extract_required_scopes, fetch_mcp_tools
 from models import AgentTokensResponse, ChatRequest
+from scoped_tool import make_scoped_tool
 from security import (
     extract_agent_identity_claims,
     extract_bearer_token,
@@ -28,6 +29,11 @@ from security import (
     validate_access_token,
 )
 from tools import TOOLS as LOCAL_TOOLS
+
+# Scope used by /v1/agent/tokens to surface a representative cached OBO. Real
+# per-tool OBOs are exchanged on demand and cached by their own scope set; this
+# is just the scope reported by the legacy tokens endpoint.
+TOKENS_ENDPOINT_REPRESENTATIVE_SCOPE = ["users.read"]
 
 SETTINGS = load_settings()
 LOGGER = logging.getLogger("agent_api")
@@ -71,6 +77,83 @@ def _error_response(request: Request, status_code: int, error: str, message: str
     )
 
 
+async def _discover_mcp_template_tools_at_startup(user_mcp_url: str) -> list:
+    """One-shot discovery against user-mcp using no OBO.
+
+    user-mcp must be configured with `USER_MCP_ALLOW_UNAUTH_DISCOVERY=true` for
+    this to succeed; the network channel is presumed secured at the mesh layer
+    (Consul service-intentions). The returned `_meta.required_scopes` on each
+    template drives the per-call scope the agent later exchanges OBO tokens
+    for. Failures are swallowed so the service still boots — `query_agent`
+    will operate with no MCP tools until discovery succeeds on a restart.
+    """
+    try:
+        templates = await fetch_mcp_tools(user_mcp_url, None, "startup")
+    except Exception as exc:  # noqa: BLE001 - startup discovery is best-effort
+        log_event(
+            LOGGER,
+            "mcp_discovery_failed_at_startup",
+            level=logging.WARNING,
+            message=f"MCP startup discovery failed against {user_mcp_url}: {exc}",
+            user_mcp_url=user_mcp_url,
+        )
+        return []
+
+    log_event(
+        LOGGER,
+        "mcp_discovery_completed_at_startup",
+        message=f"Discovered {len(templates)} MCP tool template(s) at startup",
+        user_mcp_url=user_mcp_url,
+        tool_count=len(templates),
+        tool_names=[getattr(t, "name", None) for t in templates],
+    )
+    return templates
+
+
+def _wrap_mcp_tools_with_per_call_obo(
+    template_tools: list,
+    token_service: OboTokenService,
+    subject_token: str | None,
+    request_id: str,
+    user_mcp_url: str,
+    bypass: bool,
+) -> list:
+    """Replace each MCP tool with a wrapper that exchanges a scope-specific
+    OBO right before the upstream call. In bypass mode (no real user), pass
+    the templates through unchanged so the dev loop keeps working."""
+    if bypass or subject_token is None:
+        return template_tools
+
+    wrapped: list = []
+    for template in template_tools:
+        required_scopes = extract_required_scopes(template)
+        if not required_scopes:
+            log_event(
+                LOGGER,
+                "mcp_tool_missing_required_scopes",
+                level=logging.WARNING,
+                message=(
+                    f"MCP tool {getattr(template, 'name', '?')} did not advertise "
+                    f"_meta.required_scopes; passing through without per-call OBO."
+                ),
+                request_id=request_id,
+                tool_name=getattr(template, "name", None),
+            )
+            wrapped.append(template)
+            continue
+        wrapped.append(
+            make_scoped_tool(
+                template_tool=template,
+                required_scopes=required_scopes,
+                token_service=token_service,
+                subject_token=subject_token,
+                request_id=request_id,
+                user_mcp_url=user_mcp_url,
+            )
+        )
+    return wrapped
+
+
 def _load_startup_agent_id(token_service: OboTokenService) -> str | None:
     try:
         actor_token = token_service.read_actor_token()
@@ -97,16 +180,22 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app_inner: FastAPI):
-        await probe_mcp_tools(active_settings.user_mcp_url)
+        app_inner.state.mcp_template_tools = await _discover_mcp_template_tools_at_startup(
+            active_settings.user_mcp_url
+        )
         yield
 
     app = FastAPI(lifespan=lifespan)
     app.state.settings = active_settings
     app.state.llm = llm or _build_base_llm(active_settings)
     # When set (in tests), this fixed runtime is used instead of building one
-    # per request. In production it stays None and the route fetches MCP tools
-    # per-request and binds a fresh runtime.
+    # per request. In production it stays None and the route reuses the
+    # startup-discovered MCP tool templates, wrapping them per request with
+    # tool-specific OBO tokens.
     app.state.agent_runtime = runtime
+    # Populated by the lifespan handler at startup. Kept as an empty list so
+    # the route is callable even before lifespan runs (test contexts).
+    app.state.mcp_template_tools = []
     app.state.token_service = token_service or OboTokenService(
         settings=active_settings,
         logger=LOGGER,
@@ -181,15 +270,11 @@ def create_app(
 
     @app.post("/v1/agent/query")
     async def query_agent(request: Request, chat_request: ChatRequest):
-        obo_token: str | None = None
+        access_token: str | None = None
         preferred_username: str | None = None
         if not request.app.state.settings.bypass_auth_token_exchange:
             access_token = extract_bearer_token(request)
             access_token_payload = validate_access_token(access_token)
-            obo_token = request.app.state.token_service.resolve_token(
-                access_token,
-                request.state.request_id,
-            )
             preferred_username = extract_user_identity_claims(
                 access_token_payload
             )["preferred_username"]
@@ -197,16 +282,19 @@ def create_app(
 
         runtime = request.app.state.agent_runtime
         if runtime is None:
-            mcp_tools = await fetch_mcp_tools(
-                request.app.state.settings.user_mcp_url,
-                obo_token,
+            scoped_tools = _wrap_mcp_tools_with_per_call_obo(
+                template_tools=request.app.state.mcp_template_tools,
+                token_service=request.app.state.token_service,
+                subject_token=access_token,
+                request_id=request.state.request_id,
+                user_mcp_url=request.app.state.settings.user_mcp_url,
+                bypass=request.app.state.settings.bypass_auth_token_exchange,
             )
-            tools = list(LOCAL_TOOLS) + mcp_tools
+            tools = list(LOCAL_TOOLS) + scoped_tools
             runtime = _build_runtime_for_request(request.app.state.llm, tools)
 
         return await runtime.handle_request(
             chat_request=chat_request,
-            obo_token=obo_token,
             request_id=request.state.request_id,
             request_path=request.url.path,
             request_method=request.method,
@@ -215,21 +303,28 @@ def create_app(
 
     @app.get("/v1/agent/tokens", response_model=AgentTokensResponse)
     async def get_cached_tokens(request: Request) -> AgentTokensResponse:
+        # actor_token is independent of OBO exchange and is always available.
+        # OBO is per-tool-call now, so the cache may legitimately be empty
+        # (no tool invoked yet) or unreachable (bypass mode, broker down).
+        actor_token = request.app.state.token_service.read_actor_token()
+
         if request.app.state.settings.bypass_auth_token_exchange:
-            raise AppError(
-                status_code=404,
-                error="token_not_found",
-                message="No cached OBO token found for the provided bearer token.",
-            )
+            return AgentTokensResponse(actor_token=actor_token, obo_token=None)
 
         access_token = extract_bearer_token(request)
         validate_access_token(access_token)
-        obo_token = request.app.state.token_service.get_cached_token(
-            access_token,
-            request.state.request_id,
-        )
-        actor_token = request.app.state.token_service.read_actor_token()
-        return AgentTokensResponse(obo_token=obo_token, actor_token=actor_token)
+        try:
+            obo_token: str | None = request.app.state.token_service.get_cached_token(
+                subject_token=access_token,
+                request_id=request.state.request_id,
+                scopes=TOKENS_ENDPOINT_REPRESENTATIVE_SCOPE,
+            )
+        except AppError as exc:
+            if exc.status_code == 404:
+                obo_token = None
+            else:
+                raise
+        return AgentTokensResponse(actor_token=actor_token, obo_token=obo_token)
 
     return app
 

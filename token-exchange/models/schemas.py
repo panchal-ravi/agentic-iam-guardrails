@@ -19,6 +19,11 @@ class OBOTokenRequest(BaseModel):
     actor_token: str = Field(
         ..., min_length=1, description="Vault Identity JWT identifying the actor"
     )
+    scope: str = Field(
+        ...,
+        min_length=1,
+        description="Space-separated OAuth scopes (RFC 8693 'scope' parameter)",
+    )
 
 
 class OBOTokenResponse(BaseModel):

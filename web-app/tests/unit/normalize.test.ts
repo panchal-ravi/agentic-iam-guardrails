@@ -65,10 +65,14 @@ describe('normalizeAgentTokensPayload', () => {
     });
   });
 
-  it('coerces missing token to empty string', () => {
+  it('coerces missing OBO token to null and empty actor to empty string', () => {
     expect(normalizeAgentTokensPayload({ actor_token: 'A' })).toEqual({
       actor_token: 'A',
-      obo_token: '',
+      obo_token: null,
+    });
+    expect(normalizeAgentTokensPayload({ actor_token: 'A', obo_token: null })).toEqual({
+      actor_token: 'A',
+      obo_token: null,
     });
   });
 
