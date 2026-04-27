@@ -1156,7 +1156,7 @@ details.why-not .why-body p { margin: 0 0 var(--s-03); }
 }
 .sandbox .sb-rules li.matched .r-tag { color: var(--support-err); }
 
-/* ---- Chapter 9 · Replay scrubber ------------------------------------- */
+/* ---- Chapter 10 · Replay scrubber ------------------------------------ */
 .replay {
   border: 1px solid var(--border); background: var(--bg);
   margin-top: var(--s-05);
@@ -1301,7 +1301,7 @@ details.why-not .why-body p { margin: 0 0 var(--s-03); }
   .replay svg.rp-svg path.rp-edge { animation: none !important; transition: none !important; }
 }
 
-/* ---- Chapter 10 · Faceted catalog ------------------------------------ */
+/* ---- Chapter 11 · Faceted catalog ------------------------------------ */
 .catalog {
   border: 1px solid var(--border); background: var(--bg);
   margin-top: var(--s-05);
@@ -1692,7 +1692,7 @@ details.why-not .why-body p { margin: 0 0 var(--s-03); }
   .compliance-crosswalk table { min-width: 720px; }
 }
 
-/* ---- Chapter 11 · Getting started stepper ---------------------------- */
+/* ---- Chapter 12 · Getting started stepper ---------------------------- */
 .stepper { margin: var(--s-05) 0 var(--s-06); padding: 0; list-style: none; position: relative; }
 .stepper::before {
   content: ''; position: absolute; left: 19px; top: 20px; bottom: 20px;
@@ -1790,6 +1790,301 @@ details.gotcha .gotcha-body code.inline {
   .cp-arrow, .cp-claim .cp-row-bg,
   details.gotcha summary { transition: none; }
 }
+
+/* ====================================================================== */
+/* Chapter 5 — Scope-aware delegation                                       */
+/* ====================================================================== */
+
+/* Scope chips reused across the chapter ---------------------------------- */
+.scope-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font: 500 11px var(--font-mono); letter-spacing: 0.02em;
+  padding: 2px 8px; border-radius: 2px; border: 1px solid;
+  white-space: nowrap;
+}
+.scope-chip.scope-read  { background: #defbe6; border-color: var(--support-ok); color: #0e6027; }
+.scope-chip.scope-write { background: #fff1f1; border-color: var(--support-err); color: #750e13; }
+.scope-chip::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex: none;
+}
+
+/* 5.1 — Tool registry inspector ------------------------------------------ */
+.tool-registry {
+  display: grid; grid-template-columns: 1fr; gap: var(--s-05);
+  margin: var(--s-06) 0 var(--s-05);
+}
+@media (min-width: 980px) {
+  .tool-registry { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
+}
+.tool-cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--s-04);
+}
+.tool-card {
+  position: relative;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: var(--s-04) var(--s-05);
+  background: var(--bg); border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  cursor: pointer; text-align: left;
+  transition: background var(--dur-fast) var(--ease-prod),
+              border-color var(--dur-fast) var(--ease-prod),
+              transform var(--dur-fast) var(--ease-prod);
+  font-family: var(--font-sans);
+}
+.tool-card:hover { background: var(--bg-layer); }
+.tool-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.tool-card[aria-pressed="true"] {
+  border-left-color: var(--layer-risk);
+  background: var(--layer-risk-wash);
+  transform: translateX(2px);
+}
+.tool-card .tc-name {
+  font: 600 13px var(--font-mono); letter-spacing: 0.02em; color: var(--text);
+}
+.tool-card .tc-purpose { font-size: 13px; color: var(--text-sub); line-height: 1.4; }
+.tool-card .tc-scopes { display: flex; gap: 4px; flex-wrap: wrap; }
+.tool-card .tc-sample {
+  font: 400 11px var(--font-mono); color: var(--text-helper);
+  border-top: 1px dashed var(--border);
+  padding-top: 6px; margin-top: 2px;
+}
+.tool-rows-frame {
+  background: var(--bg); border: 1px solid var(--border);
+  display: flex; flex-direction: column; min-height: 320px;
+}
+.tool-rows-head {
+  font: 500 11px var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-sub); padding: var(--s-04) var(--s-05);
+  border-bottom: 1px solid var(--border); background: var(--bg-layer);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-04);
+}
+.tool-rows-head .trh-tool { color: var(--layer-risk); text-transform: none; letter-spacing: 0.02em; }
+.tool-rows-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.tool-rows-table th, .tool-rows-table td {
+  text-align: left; padding: 8px var(--s-05); border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.tool-rows-table th {
+  font-weight: 500; color: var(--text-sub);
+  background: var(--bg); font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.tool-rows-table tr.tr-row { transition: background var(--dur-fast) var(--ease-prod), opacity var(--dur-fast) var(--ease-prod); }
+.tool-rows-table tr.tr-row.tr-dim { opacity: 0.35; }
+.tool-rows-table tr.tr-row.tr-hit { background: var(--layer-risk-wash); }
+.tool-rows-table tr.tr-row.tr-deleted td { text-decoration: line-through; color: var(--text-helper); }
+.tool-rows-table tr.tr-row.tr-new { background: var(--layer-observe-wash); }
+.tool-rows-foot {
+  border-top: 1px solid var(--border); padding: 8px var(--s-05);
+  font: 400 11px var(--font-mono); color: var(--text-sub);
+  display: flex; align-items: center; gap: 6px; min-height: 30px;
+}
+.tool-rows-foot .trf-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 6px; border: 1px solid var(--border-strong); border-radius: 2px;
+  background: var(--bg); color: var(--text); font-weight: 500;
+}
+
+/* 5.2 — Postgres + Vault mode flipper ------------------------------------ */
+.db-flipper { margin: var(--s-06) 0 var(--s-05); }
+.db-flipper-controls {
+  display: flex; flex-wrap: wrap; gap: var(--s-04) var(--s-05); align-items: center;
+  padding: var(--s-04) var(--s-05);
+  background: var(--bg-layer); border: 1px solid var(--border);
+  margin-bottom: var(--s-04);
+}
+.dbf-group { display: flex; align-items: center; gap: var(--s-03); }
+.dbf-group .dbf-label {
+  font: 500 11px var(--font-mono); letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-sub);
+}
+.dbf-seg {
+  display: inline-flex; border: 1px solid var(--border-strong); background: var(--bg);
+  border-radius: 2px; overflow: hidden;
+}
+.dbf-seg button {
+  background: transparent; border: 0; padding: 6px 12px;
+  font: 500 12px var(--font-sans); color: var(--text-sub); cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-prod);
+  border-right: 1px solid var(--border-strong);
+}
+.dbf-seg button:last-child { border-right: 0; }
+.dbf-seg button:hover { background: var(--bg-hover); color: var(--text); }
+.dbf-seg button[aria-pressed="true"] {
+  background: var(--layer-risk-wash); color: var(--layer-risk);
+  font-weight: 600;
+}
+.db-flipper-stage {
+  background: var(--bg); border: 1px solid var(--border);
+  padding: var(--s-04);
+}
+.db-flipper-stage svg { width: 100%; height: auto; max-width: 920px; display: block; }
+.dbf-status {
+  margin-top: var(--s-03);
+  font: 400 12px var(--font-mono); color: var(--text-sub);
+}
+.dbf-status strong { color: var(--text); font-weight: 600; }
+
+/* 5.3 — Intent translator stage ------------------------------------------ */
+.intent-translator { margin: var(--s-06) 0 var(--s-04); }
+.it-controls {
+  display: flex; flex-wrap: wrap; gap: var(--s-03); align-items: center;
+  margin-bottom: var(--s-04);
+}
+.it-controls .it-step-btn {
+  background: var(--bg); border: 1px solid var(--border-strong); color: var(--text);
+  font: 500 12px var(--font-sans); padding: 6px 12px; cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-prod);
+}
+.it-controls .it-step-btn:hover { background: var(--bg-layer); }
+.it-controls .it-step-btn.it-primary { background: var(--layer-risk); color: #fff; border-color: var(--layer-risk); }
+.it-controls .it-step-btn.it-primary:hover { background: #e0721b; border-color: #e0721b; }
+.it-controls .it-step-presets { display: flex; gap: 4px; flex-wrap: wrap; }
+.it-controls .it-preset {
+  background: transparent; border: 1px solid var(--border); color: var(--text-sub);
+  font: 500 11px var(--font-mono); padding: 4px 10px; cursor: pointer;
+  transition: all var(--dur-fast) var(--ease-prod);
+}
+.it-controls .it-preset:hover { background: var(--bg-layer); color: var(--text); }
+.it-controls .it-preset[aria-pressed="true"] {
+  border-color: var(--layer-risk); background: var(--layer-risk-wash); color: var(--layer-risk);
+}
+.it-controls .it-step-indicator {
+  font: 500 11px var(--font-mono); letter-spacing: 0.04em; color: var(--text-sub);
+  margin-left: auto;
+}
+
+.it-stage {
+  display: grid; grid-template-columns: 1fr; gap: 4px;
+  background: var(--bg-layer); border: 1px solid var(--border);
+  padding: var(--s-04);
+}
+.it-row {
+  position: relative;
+  background: var(--bg); border: 1px solid var(--border);
+  padding: var(--s-04) var(--s-05);
+  opacity: 0.35;
+  transition: opacity var(--dur-mod) var(--ease-prod),
+              border-color var(--dur-mod) var(--ease-prod),
+              transform var(--dur-mod) var(--ease-prod);
+}
+.it-row.it-active { opacity: 1; border-color: var(--layer-risk); transform: translateX(4px); }
+.it-row.it-done { opacity: 1; border-left: 3px solid var(--layer-risk); }
+.it-row .it-row-tag {
+  display: inline-block; font: 500 10px var(--font-mono);
+  letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-sub);
+  margin-bottom: 4px;
+}
+.it-row pre {
+  margin: 4px 0 0; padding: 8px 10px; background: var(--bg-layer);
+  border: 1px solid var(--border); font-size: 12px; line-height: 1.5;
+}
+.it-row pre .it-hl { background: var(--layer-risk-wash); color: var(--layer-risk); font-weight: 600; padding: 0 2px; }
+.it-row .it-arrow {
+  position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%);
+  font: 500 14px var(--font-mono); color: var(--layer-risk);
+  background: var(--bg-layer); padding: 0 6px;
+  opacity: 0; transition: opacity var(--dur-mod) var(--ease-prod);
+}
+.it-row.it-done + .it-row .it-arrow { opacity: 1; }
+.it-row.it-active .it-arrow { opacity: 1; }
+
+/* 5.4 — Authz sandbox ---------------------------------------------------- */
+.authz-sandbox {
+  display: grid; grid-template-columns: 1fr; gap: var(--s-04);
+  margin: var(--s-06) 0 var(--s-04);
+}
+@media (min-width: 880px) {
+  .authz-sandbox { grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); }
+}
+.azs-input, .azs-output {
+  background: var(--bg); border: 1px solid var(--border);
+  padding: var(--s-05);
+  display: flex; flex-direction: column; gap: var(--s-04);
+}
+.azs-block { display: flex; flex-direction: column; gap: 6px; }
+.azs-block-label {
+  font: 500 11px var(--font-mono); letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--text-sub);
+}
+.azs-input select {
+  font: 500 13px var(--font-mono); padding: 6px 8px;
+  background: var(--bg); border: 1px solid var(--border-strong); color: var(--text);
+}
+.azs-input select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.azs-checks { display: flex; flex-direction: column; gap: 6px; }
+.azs-check {
+  display: flex; align-items: center; gap: 8px;
+  font: 500 12px var(--font-mono); cursor: pointer;
+  padding: 4px 6px; border-radius: 2px;
+  transition: background var(--dur-fast) var(--ease-prod);
+}
+.azs-check:hover { background: var(--bg-layer); }
+.azs-check input { accent-color: var(--layer-risk); }
+.azs-policy {
+  font: 400 12px var(--font-mono); color: var(--text-sub);
+  background: var(--bg-layer); border: 1px solid var(--border);
+  padding: var(--s-03) var(--s-04);
+}
+.azs-policy table { border-collapse: collapse; width: 100%; }
+.azs-policy td { padding: 2px 8px 2px 0; }
+.azs-policy td:first-child { color: var(--layer-risk); font-weight: 600; }
+
+.azs-output { position: relative; }
+.azs-decision {
+  border-left: 4px solid transparent;
+  padding: var(--s-04) var(--s-05);
+  background: var(--bg-layer);
+  display: flex; flex-direction: column; gap: var(--s-03);
+  transition: all var(--dur-mod) var(--ease-prod);
+}
+.azs-decision.azs-allow {
+  border-left-color: var(--support-ok);
+  background: var(--layer-observe-wash);
+}
+.azs-decision.azs-deny {
+  border-left-color: var(--support-err);
+  background: var(--layer-policy-wash);
+}
+.azs-decision-status {
+  font: 600 14px var(--font-mono); letter-spacing: 0.04em;
+}
+.azs-decision.azs-allow .azs-decision-status { color: #0e6027; }
+.azs-decision.azs-deny  .azs-decision-status { color: #750e13; }
+.azs-decision-detail {
+  font: 400 12px var(--font-mono); color: var(--text-sub);
+  white-space: pre-wrap; word-break: break-word;
+}
+.azs-decision-flow {
+  font: 400 11px var(--font-mono); color: var(--text-helper);
+  border-top: 1px dashed var(--border); padding-top: var(--s-03);
+}
+
+/* 5.5 — Mini end-to-end sequence ----------------------------------------- */
+.e2e-mini { margin: var(--s-06) 0 var(--s-05); }
+.e2e-mini .e2e-frame {
+  background: var(--bg); border: 1px solid var(--border); padding: var(--s-05) var(--s-04);
+}
+.e2e-mini .e2e-frame svg { width: 100%; height: auto; display: block; }
+.e2e-mini .e2e-legend {
+  display: flex; flex-wrap: wrap; gap: var(--s-05); margin-top: var(--s-04);
+  font: 400 12px var(--font-mono); color: var(--text-sub);
+}
+.e2e-mini .e2e-legend i {
+  display: inline-block; width: 18px; height: 2px; vertical-align: middle;
+  margin-right: 6px;
+}
+.e2e-mini .e2e-legend .l-discovery { background: #525252; }
+.e2e-mini .e2e-legend .l-runtime   { background: var(--layer-risk); }
+
+/* Reduced motion --------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .tool-card, .it-row, .azs-decision, .dbf-seg button { transition: none; }
+  .dbf-particle, .e2e-particle { animation: none !important; }
+  animateMotion { display: none; }
+}
 </style>
 </head>
 <body>
@@ -1805,6 +2100,7 @@ details.gotcha .gotcha-body code.inline {
       <a href="#foundations" data-chapter>Foundations</a>
       <a href="#workload-identity" data-chapter>Identity</a>
       <a href="#delegation" data-chapter>Delegation</a>
+      <a href="#authorization" data-chapter>Authorize</a>
       <a href="#transport" data-chapter>Transport</a>
       <a href="#gates" data-chapter>Gates</a>
       <a href="#policy" data-chapter>Policy</a>
@@ -2210,6 +2506,11 @@ details.gotcha .gotcha-body code.inline {
       it by presenting a Vault-issued OIDC token derived from its platform-native identity. The agent
       never reads a secret, never calls an auth endpoint, and has no credentials in code.
     </p>
+    <p class="helper">
+      Identity by itself doesn't say what the agent may <em>do</em>. The scopes that flow into
+      the OBO token aren't picked by the LLM either — see <a href="#authorization">Chapter&nbsp;5 · Scope-aware delegation</a>
+      for where they come from and how they're vetted.
+    </p>
 
     <div class="subsection">
       <h3>Three stages, one JWT</h3>
@@ -2507,7 +2808,7 @@ actor_token=&lt;agent JWT&gt;</code></pre>
           <g class="cp-claim" data-claim="scope" tabindex="0" aria-label="scope on subject token, narrowed on exchange">
             <rect class="cp-row-bg" x="14" y="202" width="252" height="36"/>
             <text class="cp-claim-name" x="24" y="220">scope</text>
-            <text class="cp-claim-help" x="24" y="234">intersected with tool scopes by broker policy</text>
+            <text class="cp-claim-help" x="24" y="234">vetted by SCOPE_REQUIREMENTS — see Ch 5</text>
           </g>
           <g class="cp-claim" data-claim="client_id" tabindex="0" aria-label="client id on subject token, overridden">
             <rect class="cp-row-bg" x="14" y="242" width="252" height="36"/>
@@ -2579,7 +2880,7 @@ actor_token=&lt;agent JWT&gt;</code></pre>
           <g class="cp-claim" data-claim="scope" tabindex="0" aria-label="scope on obo token, narrowed">
             <rect class="cp-row-bg" x="654" y="202" width="252" height="36"/>
             <text class="cp-claim-name" x="664" y="220">scope</text>
-            <text class="cp-claim-help" x="664" y="234">narrowed by broker policy (subset)</text>
+            <text class="cp-claim-help" x="664" y="234">narrowed to {users.read} or {users.write}</text>
           </g>
           <g class="cp-claim" data-claim="client_id" tabindex="0" aria-label="client id on obo token">
             <rect class="cp-row-bg" x="654" y="242" width="252" height="36"/>
@@ -2635,15 +2936,437 @@ actor_token=&lt;agent JWT&gt;</code></pre>
         </div>
       </div>
     </div>
+
+    <div class="callout risk">
+      <strong>Scope narrowing is not optional.</strong>
+      The <code class="inline">scope</code> column above isn't aspirational — token-exchange runs a
+      <code class="inline">SCOPE_REQUIREMENTS</code> table against the user's <code class="inline">groups</code>
+      claim and rejects with HTTP&nbsp;403 if the user isn't entitled to a requested scope. And the
+      requested scopes themselves come from a place that may surprise you — the LLM doesn't pick them.
+      Continue to <a href="#authorization">Chapter&nbsp;5</a> for both halves of that story.
+    </div>
   </div>
 </section>
 
 <!-- ==================================================================== -->
-<!-- Chapter 5 · Transport — Consul mesh, Envoy sidecars, mTLS, intentions  -->
+<!-- Chapter 5 · Authorize — scope-aware delegation, user-mcp, Postgres     -->
+<!-- ==================================================================== -->
+<section id="authorization" class="chapter">
+  <div class="page">
+    <span class="chapter-num">Chapter 05 · <span class="chip chip-risk">authorize</span></span>
+    <h2>Scope-aware delegation — the LLM doesn't pick what the agent can do</h2>
+    <p class="lede">
+      Delegation gave the agent a token bound to <em>a</em> user. Two questions remain. <em>For which scopes is this token valid?</em>
+      The tool itself answers — every <span class="node" data-node="user-mcp">user-mcp</span> tool declares the scopes
+      it requires in its MCP <code class="inline">_meta</code>. <em>Is the user even entitled to those scopes?</em>
+      <span class="node" data-node="token-exchange">token-exchange</span> answers — a small policy table maps each scope
+      to an allow-list of <code class="inline">groups</code> claims, and a 403 fires before the OBO is ever minted.
+    </p>
+
+    <p class="helper">
+      This chapter is the <strong>least-privilege</strong> half of delegation. Chapter&nbsp;4 told you <em>who</em> is
+      acting on whose behalf; this chapter tells you <em>which actions</em> the broker is willing to delegate, and to
+      <em>which users</em>. None of it is decided by the LLM — that's the design point.
+    </p>
+
+    <!-- 5.1 · Tool registry inspector ------------------------------------- -->
+    <div class="subsection">
+      <h3>Tools self-declare their scopes — the registry the LLM never sees</h3>
+      <p>
+        <span class="node" data-node="user-mcp">user-mcp</span> exposes five tools against a
+        <code class="inline">users</code> repository — list, search, create, update, delete. Each tool declares its
+        required scopes in <code class="inline">_meta.required_scopes</code>; the agent reads that map once, at startup,
+        by calling <code class="inline">tools/list</code>. <strong>Click a tool</strong> to see which rows and columns
+        it touches.
+      </p>
+
+      <div class="tool-registry" id="tool-registry">
+        <div class="tool-cards" role="tablist" aria-label="user-mcp tools">
+          <button type="button" class="tool-card" role="tab" aria-pressed="true" data-tool="list_all_users">
+            <span class="tc-name">list_all_users</span>
+            <span class="tc-purpose">Return every row — used for admin overviews.</span>
+            <span class="tc-scopes"><span class="scope-chip scope-read">users.read</span></span>
+            <span class="tc-sample">SELECT * FROM users</span>
+          </button>
+          <button type="button" class="tool-card" role="tab" aria-pressed="false" data-tool="search_users_by_first_name">
+            <span class="tc-name">search_users_by_first_name</span>
+            <span class="tc-purpose">Case-insensitive lookup by first name.</span>
+            <span class="tc-scopes"><span class="scope-chip scope-read">users.read</span></span>
+            <span class="tc-sample">… WHERE lower(first_name)=lower($1)</span>
+          </button>
+          <button type="button" class="tool-card" role="tab" aria-pressed="false" data-tool="create_user">
+            <span class="tc-name">create_user</span>
+            <span class="tc-purpose">Insert a new row keyed on <code>email</code>.</span>
+            <span class="tc-scopes"><span class="scope-chip scope-write">users.write</span></span>
+            <span class="tc-sample">INSERT INTO users (…) VALUES (…)</span>
+          </button>
+          <button type="button" class="tool-card" role="tab" aria-pressed="false" data-tool="update_user_by_email">
+            <span class="tc-name">update_user_by_email</span>
+            <span class="tc-purpose">Modify mutable fields by email.</span>
+            <span class="tc-scopes"><span class="scope-chip scope-write">users.write</span></span>
+            <span class="tc-sample">UPDATE users SET … WHERE email=$1</span>
+          </button>
+          <button type="button" class="tool-card" role="tab" aria-pressed="false" data-tool="delete_user_by_email">
+            <span class="tc-name">delete_user_by_email</span>
+            <span class="tc-purpose">Remove a row — irreversible.</span>
+            <span class="tc-scopes"><span class="scope-chip scope-write">users.write</span></span>
+            <span class="tc-sample">DELETE FROM users WHERE email=$1</span>
+          </button>
+        </div>
+
+        <div class="tool-rows-frame" aria-live="polite">
+          <div class="tool-rows-head">
+            <span>user repository · <code>users</code></span>
+            <span class="trh-tool" id="tr-tool-name">list_all_users</span>
+          </div>
+          <div style="overflow:auto;">
+            <table class="tool-rows-table" id="tr-table">
+              <thead>
+                <tr><th>email</th><th>first_name</th><th>last_name</th><th>ssn</th></tr>
+              </thead>
+              <tbody>
+                <tr class="tr-row" data-email="alex.morgan@acme.example" data-first="alex"><td>alex.morgan@acme.example</td><td>alex</td><td>morgan</td><td>•••-••-6789</td></tr>
+                <tr class="tr-row" data-email="alex.kim@acme.example" data-first="alex"><td>alex.kim@acme.example</td><td>alex</td><td>kim</td><td>•••-••-1182</td></tr>
+                <tr class="tr-row" data-email="dana.singh@acme.example" data-first="dana"><td>dana.singh@acme.example</td><td>dana</td><td>singh</td><td>•••-••-2244</td></tr>
+                <tr class="tr-row" data-email="priya.patel@acme.example" data-first="priya"><td>priya.patel@acme.example</td><td>priya</td><td>patel</td><td>•••-••-3056</td></tr>
+                <tr class="tr-row" data-email="jordan.lee@acme.example" data-first="jordan"><td>jordan.lee@acme.example</td><td>jordan</td><td>lee</td><td>•••-••-4910</td></tr>
+                <tr class="tr-row" data-email="sam.cole@acme.example" data-first="sam"><td>sam.cole@acme.example</td><td>sam</td><td>cole</td><td>•••-••-5573</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="tool-rows-foot" id="tr-foot">
+            <span class="trf-pill">SELECT</span>
+            <span>scope-bound query · 6 rows · all columns visible</span>
+          </div>
+        </div>
+      </div>
+
+      <p class="caption">
+        Same five tools, two scopes. <code class="inline">users.read</code> covers anything that doesn't change rows;
+        <code class="inline">users.write</code> covers everything that does. The agent never asks the LLM "what scope
+        do I need?" — it reads the answer from MCP metadata before the OBO call.
+      </p>
+    </div>
+
+    <!-- 5.2 · Vault dynamic credentials, scope-bound ----------------------- -->
+    <div class="subsection">
+      <h3>Vault dynamic credentials — the scope picks the database role</h3>
+      <p>
+        Once the OBO token is in hand, user-mcp does <em>not</em> hold any standing database credential. For every
+        tool call it asks <span class="node" data-node="vault-db-roles">Vault</span> for a fresh, short-lived database
+        lease — and the role it requests is chosen <strong>by the scope on the OBO</strong>:
+        <code class="inline">users.read</code> maps to a read-only role, <code class="inline">users.write</code> maps
+        to a writer role. Flip the scope and watch the role label change.
+      </p>
+
+      <div class="db-flipper" id="db-flipper">
+        <div class="db-flipper-controls" role="group" aria-label="Vault scope-to-role binding">
+          <div class="dbf-group" id="dbf-scope-group">
+            <span class="dbf-label">Scope on OBO</span>
+            <div class="dbf-seg" role="tablist" aria-label="Tool scope">
+              <button type="button" role="tab" aria-pressed="true"  data-scope="users.read">users.read</button>
+              <button type="button" role="tab" aria-pressed="false" data-scope="users.write">users.write</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="db-flipper-stage">
+          <svg viewBox="0 0 920 260" role="img" aria-label="Vault dynamic credential flow keyed on scope">
+            <defs>
+              <marker id="dbf-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+                <path d="M0,0 L10,5 L0,10 z" fill="#ff832b"/>
+              </marker>
+            </defs>
+
+            <!-- user-mcp on the left -->
+            <g>
+              <rect x="20" y="90" width="180" height="80" rx="3" fill="#fff" stroke="#525252"/>
+              <text x="110" y="82" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252" letter-spacing="1">USER-MCP</text>
+              <text x="110" y="125" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#161616">tool handler</text>
+              <text x="110" y="145" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">scope-bound</text>
+            </g>
+
+            <!-- Vault in the middle -->
+            <g class="dbf-lane" id="dbf-lane-vault">
+              <rect x="380" y="100" width="160" height="60" rx="3" fill="#fff2e8" stroke="#ff832b" stroke-width="1.5"/>
+              <text x="460" y="92" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" letter-spacing="1" fill="#ff832b">VAULT</text>
+              <text x="460" y="124" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#161616">login_with_jwt(obo)</text>
+              <text x="460" y="142" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252" id="dbf-role-label">role: users-read</text>
+
+              <path d="M 200 130 C 260 130, 320 130, 380 130" fill="none" stroke="#ff832b" stroke-width="1.4" marker-end="url(#dbf-arr)"/>
+              <path d="M 540 130 C 600 130, 620 130, 700 130" fill="none" stroke="#ff832b" stroke-width="1.4" marker-end="url(#dbf-arr)" stroke-dasharray="3 3"/>
+              <text x="290" y="118" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#ff832b">obo + scope</text>
+              <text x="620" y="118" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#ff832b">leased creds (short TTL)</text>
+              <circle r="4" fill="#ff832b" class="dbf-particle">
+                <animateMotion dur="4s" repeatCount="indefinite"
+                  path="M 200 130 C 260 130, 320 130, 380 130 L 540 130 C 600 130, 620 130, 700 130"/>
+              </circle>
+            </g>
+
+            <!-- User repository on the right -->
+            <g>
+              <rect x="700" y="90" width="200" height="80" rx="3" fill="#fff" stroke="#525252"/>
+              <text x="800" y="82" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" letter-spacing="1" fill="#525252">USER REPOSITORY</text>
+              <text x="800" y="122" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#161616">users</text>
+              <text x="800" y="142" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">PII rows · email PK</text>
+            </g>
+
+            <!-- Bottom annotation -->
+            <text x="460" y="208" text-anchor="middle" font-family="IBM Plex Mono" font-size="11" fill="#525252">
+              role lookup is deterministic · scope → role · no broker, no LLM
+            </text>
+          </svg>
+        </div>
+
+        <p class="dbf-status" id="dbf-status">
+          Scope: <strong>users.read</strong> · Vault role: <strong>users-read</strong> (read-only · short-lived lease)
+        </p>
+      </div>
+
+      <div class="callout">
+        <strong>Why per-call leases.</strong> Vault binds each call to the <em>scope</em> the OBO token grants — a
+        <code class="inline">users.read</code> request cannot accidentally <code class="inline">UPDATE</code>, even
+        if the SQL is malformed, because the leased role lacks the privilege at the database layer. Capability is
+        enforced where the data lives, not where the agent runs.
+      </div>
+    </div>
+
+    <!-- 5.3 · Intent → scope ---------------------------------------------- -->
+    <div class="subsection">
+      <h3>Intent → scope · the LLM does not pick scopes</h3>
+      <p>
+        Pick a tool the agent might call, then step through what happens. Notice that the wrapper looks up
+        <code class="inline">_meta.required_scopes</code> from the registry it built at startup — the LLM's only
+        contribution is choosing the tool. The scopes that flow into the OBO call are <strong>deterministic</strong>.
+      </p>
+
+      <div class="intent-translator" id="intent-translator">
+        <div class="it-controls" role="toolbar" aria-label="Intent translator controls">
+          <div class="it-step-presets" role="group" aria-label="Tool preset">
+            <button type="button" class="it-preset" data-tool="list_all_users" aria-pressed="true">list_all_users</button>
+            <button type="button" class="it-preset" data-tool="search_users_by_first_name" aria-pressed="false">search_users_by_first_name</button>
+            <button type="button" class="it-preset" data-tool="delete_user_by_email" aria-pressed="false">delete_user_by_email</button>
+          </div>
+          <button type="button" class="it-step-btn it-primary" id="it-step-btn">Step ▶</button>
+          <button type="button" class="it-step-btn" id="it-reset-btn">↻ Reset</button>
+          <span class="it-step-indicator" id="it-step-indicator">Step 0 / 3 · idle</span>
+        </div>
+
+        <div class="it-stage" aria-live="polite">
+          <div class="it-row" data-step="1">
+            <span class="it-row-tag">01 · LLM chooses a tool</span>
+            <pre id="it-row-1">{
+  "tool": "list_all_users",
+  "args": {}
+}</pre>
+            <span class="it-arrow" aria-hidden="true">▼</span>
+          </div>
+          <div class="it-row" data-step="2">
+            <span class="it-row-tag">02 · Wrapper looks up _meta.required_scopes</span>
+            <pre id="it-row-2">TOOL_SCOPE_REQUIREMENTS = {
+  "list_all_users":             ["<span class="it-hl">users.read</span>"],
+  "search_users_by_first_name": ["users.read"],
+  "create_user":                ["users.write"],
+  "update_user_by_email":       ["users.write"],
+  "delete_user_by_email":       ["users.write"],
+}</pre>
+            <span class="it-arrow" aria-hidden="true">▼</span>
+          </div>
+          <div class="it-row" data-step="3">
+            <span class="it-row-tag">03 · Wrapper builds the OBO request</span>
+            <pre id="it-row-3">POST /v1/identity/obo-token
+{
+  "subject_token": "&lt;user JWT&gt;",
+  "actor_token":   "&lt;agent JWT&gt;",
+  "scope":         "<span class="it-hl">users.read</span>"
+}</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout risk">
+        <strong>The architectural point.</strong> Scopes come from <code class="inline">_meta.required_scopes</code>
+        on each MCP tool — they are <em>never inferred by the LLM</em>. That makes scope determination
+        deterministic, auditable, and trivially reviewable: change the metadata in the tool, change what the
+        agent will request. No prompt to tweak, no hallucination to debug.
+      </div>
+    </div>
+
+    <!-- 5.4 · Authz sandbox ------------------------------------------------ -->
+    <div class="subsection">
+      <h3>The authorization gate · local, inline, 403 on rejection</h3>
+      <p>
+        With the requested scopes determined, <span class="node" data-node="token-exchange">token-exchange</span>
+        runs the <span class="node" data-node="scope-requirements">SCOPE_REQUIREMENTS</span> table against the
+        <code class="inline">groups</code> claim in the subject token. The check is inline — no callback to ai-agent,
+        no external authz service. If the user isn't entitled, the broker raises
+        <code class="inline">VerifyAuthorizationError</code> which the API maps to <strong>HTTP&nbsp;403</strong>;
+        no OBO token is ever minted.
+      </p>
+
+      <div class="authz-sandbox" id="authz-sandbox">
+        <div class="azs-input">
+          <div class="azs-block">
+            <label class="azs-block-label" for="azs-groups">User groups (subject_token claim)</label>
+            <select id="azs-groups">
+              <option value="readonly">{ readonly }</option>
+              <option value="admin">{ admin }</option>
+              <option value="readonly,finance">{ readonly, finance }</option>
+              <option value="finance">{ finance }</option>
+              <option value="">{ } &nbsp;(no group)</option>
+            </select>
+          </div>
+
+          <div class="azs-block">
+            <span class="azs-block-label">Requested scopes (from tool _meta)</span>
+            <div class="azs-checks" role="group" aria-label="Requested scopes">
+              <label class="azs-check"><input type="checkbox" value="users.read" checked> users.read</label>
+              <label class="azs-check"><input type="checkbox" value="users.write"> users.write</label>
+            </div>
+          </div>
+
+          <div class="azs-block">
+            <span class="azs-block-label">Policy · scope → entitled groups</span>
+            <div class="azs-policy">
+              <table>
+                <tr><td>users.read</td><td>{ readonly, admin }</td></tr>
+                <tr><td>users.write</td><td>{ admin }</td></tr>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="azs-output" aria-live="polite">
+          <div class="azs-decision" id="azs-decision">
+            <div class="azs-decision-status" id="azs-status">…</div>
+            <div class="azs-decision-detail" id="azs-detail">Pick a group and a scope to see the decision.</div>
+            <div class="azs-decision-flow" id="azs-flow"></div>
+          </div>
+        </div>
+      </div>
+
+      <p class="caption">
+        Try <code class="inline">{ readonly }</code> with <code class="inline">users.write</code> — denied.
+        Try <code class="inline">{ admin }</code> with both — allowed. Try <code class="inline">{ }</code> — denied,
+        every time. The broker doesn't ask the LLM, the agent, or anyone else; it reads a six-line table.
+      </p>
+    </div>
+
+    <!-- 5.5 · Putting it together ----------------------------------------- -->
+    <div class="subsection">
+      <h3>End to end · discovery, intent, authz, query</h3>
+      <p>
+        How the four pieces fit together in one request. The dim arrows on top happen <em>once at startup</em> —
+        ai-agent calls <code class="inline">tools/list</code> and caches the scope map. The orange arrows fire
+        <em>per call</em>: scopes flow into the OBO request, the broker checks groups, the OBO travels over mTLS
+        to user-mcp, user-mcp re-validates the scope subset, and Vault hands out a leased role for the right kind
+        of query against the user repository.
+      </p>
+
+      <div class="e2e-mini">
+        <div class="e2e-frame">
+          <svg viewBox="0 0 940 320" role="img" aria-label="End-to-end scope-aware delegation sequence">
+            <defs>
+              <marker id="e2e-arr"      viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ff832b"/></marker>
+              <marker id="e2e-arr-grey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8d8d8d"/></marker>
+            </defs>
+
+            <!-- Top row: discovery (dim) -->
+            <g opacity="0.55">
+              <rect x="40"  y="30" width="120" height="44" rx="2" fill="#fff" stroke="#8d8d8d"/>
+              <text x="100" y="48" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" fill="#161616">ai-agent</text>
+              <text x="100" y="64" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">startup</text>
+
+              <rect x="780" y="30" width="120" height="44" rx="2" fill="#fff" stroke="#8d8d8d"/>
+              <text x="840" y="48" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" fill="#161616">user-mcp</text>
+              <text x="840" y="64" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">tools/list</text>
+
+              <path d="M 162 52 L 778 52" stroke="#8d8d8d" stroke-width="1.2" stroke-dasharray="4 4" fill="none" marker-end="url(#e2e-arr-grey)"/>
+              <text x="470" y="44" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">discover · cache _meta.required_scopes</text>
+              <circle r="3" fill="#8d8d8d">
+                <animateMotion dur="6s" repeatCount="indefinite" path="M 162 52 L 778 52"/>
+              </circle>
+            </g>
+
+            <!-- Middle separator -->
+            <line x1="20" y1="100" x2="920" y2="100" stroke="#e0e0e0" stroke-dasharray="2 4"/>
+
+            <!-- Bottom row: per-call -->
+            <g>
+              <rect x="40"  y="130" width="130" height="50" rx="2" fill="#fff" stroke="#161616"/>
+              <text x="105" y="150" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" fill="#161616">ai-agent</text>
+              <text x="105" y="166" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">+ scope map</text>
+
+              <rect x="210" y="130" width="160" height="50" rx="2" fill="#fff2e8" stroke="#ff832b"/>
+              <text x="290" y="150" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" fill="#161616">token-exchange</text>
+              <text x="290" y="166" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#ff832b">groups gate · 403?</text>
+
+              <rect x="410" y="130" width="160" height="50" rx="2" fill="#fff2e8" stroke="#ff832b"/>
+              <text x="490" y="150" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" fill="#161616">user-mcp</text>
+              <text x="490" y="166" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#ff832b">scope ⊆ granted?</text>
+
+              <rect x="610" y="130" width="120" height="50" rx="2" fill="#fff2e8" stroke="#ff832b"/>
+              <text x="670" y="150" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" fill="#161616">Vault</text>
+              <text x="670" y="166" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#ff832b">db role</text>
+
+              <rect x="770" y="130" width="130" height="50" rx="2" fill="#fff" stroke="#161616"/>
+              <text x="835" y="150" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" fill="#161616">user repo</text>
+              <text x="835" y="166" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">users</text>
+
+              <!-- Arrows -->
+              <path d="M 170 155 L 208 155" stroke="#ff832b" stroke-width="1.5" fill="none" marker-end="url(#e2e-arr)"/>
+              <path d="M 370 155 L 408 155" stroke="#ff832b" stroke-width="1.5" fill="none" marker-end="url(#e2e-arr)"/>
+              <path d="M 570 155 L 608 155" stroke="#ff832b" stroke-width="1.5" fill="none" marker-end="url(#e2e-arr)"/>
+              <path d="M 730 155 L 768 155" stroke="#ff832b" stroke-width="1.5" fill="none" marker-end="url(#e2e-arr)"/>
+
+              <!-- Labels above the arrows -->
+              <text x="189" y="148" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#525252">+ scope</text>
+              <text x="389" y="148" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#525252">obo · mTLS</text>
+              <text x="589" y="148" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#525252">jwt</text>
+              <text x="749" y="148" text-anchor="middle" font-family="IBM Plex Mono" font-size="9" fill="#525252">leased creds</text>
+
+              <!-- particle -->
+              <circle r="4" fill="#ff832b" class="e2e-particle">
+                <animateMotion dur="7s" repeatCount="indefinite"
+                  path="M 105 180 L 105 200 L 835 200 L 835 180"/>
+              </circle>
+              <line x1="105" y1="200" x2="835" y2="200" stroke="#ff832b" stroke-width="0.6" stroke-dasharray="2 4" opacity="0.4"/>
+            </g>
+
+            <!-- Bottom annotations -->
+            <text x="290" y="240" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">SCOPE_REQUIREMENTS</text>
+            <text x="290" y="254" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">groups ∩ allowed?</text>
+
+            <text x="490" y="240" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">requested ⊆ granted?</text>
+            <text x="490" y="254" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">403 if not</text>
+
+            <text x="800" y="240" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">read-role · write-role</text>
+            <text x="800" y="254" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">scope picks the role</text>
+          </svg>
+        </div>
+        <div class="e2e-legend">
+          <span><i class="l-discovery"></i> discovery (once at startup)</span>
+          <span><i class="l-runtime"></i> per-call (every tool invocation)</span>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Three independent checks, one chain.</strong> token-exchange owns
+        <em>entitlement</em> (group ↔ scope). user-mcp owns <em>presentation</em> (scope ⊆ granted at request time).
+        Vault owns <em>capability</em> (the database role only knows how to do read or write SQL). Defeating any
+        single one of them isn't enough.
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ==================================================================== -->
+<!-- Chapter 6 · Transport — Consul mesh, Envoy sidecars, mTLS, intentions  -->
 <!-- ==================================================================== -->
 <section id="transport" class="chapter">
   <div class="page">
-    <span class="chapter-num">Chapter 05 · <span class="chip chip-transport">transport</span></span>
+    <span class="chapter-num">Chapter 06 · <span class="chip chip-transport">transport</span></span>
     <h2>Every hop is identity-aware, every connection is mTLS</h2>
     <p class="lede">
       Identity without enforcement is a claim. Consul's service mesh turns the OBO chain into wire-level trust:
@@ -2879,7 +3602,7 @@ spec:
 <!-- ==================================================================== -->
 <section id="gates" class="chapter">
   <div class="page">
-    <span class="chapter-num">Chapter 06 · <span class="chip chip-policy">policy</span></span>
+    <span class="chapter-num">Chapter 07 · <span class="chip chip-policy">policy</span></span>
     <h2>Three gates, one request — pre-flight, in-flight, post-flight</h2>
     <p class="lede">
       The same request is inspected three times by the same enforcement plane, but against three different
@@ -2891,7 +3614,55 @@ spec:
     </p>
 
     <div class="subsection">
-      <h3>The pipeline, as one picture</h3>
+      <h3>Gate 00 · authz · the precondition that fires before any of these</h3>
+      <p>
+        Before any of the three runtime gates below see a single byte of the request, a fourth check has
+        already happened — and a different service runs it. When the agent asked the broker for an OBO,
+        <span class="node" data-node="token-exchange">token-exchange</span> looked up the requested scopes against
+        <span class="node" data-node="scope-requirements">SCOPE_REQUIREMENTS</span> and the user's
+        <code class="inline">groups</code> claim. If the user wasn't entitled, no OBO was minted and the request
+        died with HTTP&nbsp;403 — the prompt never reached the agent, the sidecar, or the gates below.
+      </p>
+
+      <div class="svg-frame" aria-label="Gate 00 authorization precondition">
+        <svg viewBox="0 0 920 110" role="img">
+          <defs>
+            <marker id="g00-arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#ff832b"/></marker>
+            <marker id="g00-arr-block" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#da1e28"/></marker>
+          </defs>
+          <line x1="20" y1="55" x2="900" y2="55" stroke="#c6c6c6" stroke-width="1" stroke-dasharray="2 3"/>
+          <g>
+            <circle cx="30" cy="55" r="7" fill="#161616"/>
+            <text x="30" y="80" text-anchor="middle" font-family="IBM Plex Sans" font-size="11" fill="#525252">user</text>
+          </g>
+          <g>
+            <rect x="120" y="20" width="240" height="70" rx="3" fill="#fff2e8" stroke="#ff832b" stroke-width="1.5"/>
+            <text x="240" y="14" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#ff832b" letter-spacing="1">GATE 00 · AUTHZ (TOKEN-EXCHANGE)</text>
+            <text x="240" y="46" text-anchor="middle" font-family="IBM Plex Sans" font-size="13" font-weight="600" fill="#161616">groups ∩ SCOPE_REQUIREMENTS</text>
+            <text x="240" y="64" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">→ 403 deny · 200 mint OBO</text>
+            <text x="240" y="80" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#525252">fires once per OBO request, not per call</text>
+          </g>
+          <line x1="42" y1="55" x2="118" y2="55" stroke="#525252" stroke-width="1.2" marker-end="url(#g00-arr)"/>
+          <line x1="362" y1="55" x2="540" y2="55" stroke="#ff832b" stroke-width="1.5" marker-end="url(#g00-arr)" stroke-dasharray="2 4"/>
+          <text x="450" y="48" text-anchor="middle" font-family="IBM Plex Mono" font-size="10" fill="#ff832b">OBO minted → into the gates below</text>
+          <g>
+            <rect x="560" y="32" width="320" height="46" rx="3" fill="#f4f4f4" stroke="#c6c6c6" stroke-dasharray="3 3"/>
+            <text x="720" y="58" text-anchor="middle" font-family="IBM Plex Sans" font-size="12" fill="#525252">three runtime gates (next subsection)</text>
+          </g>
+          <path d="M 240 90 C 240 130, 90 130, 38 78" fill="none" stroke="#da1e28" stroke-width="1" stroke-dasharray="4 4" marker-end="url(#g00-arr-block)" opacity="0.8"/>
+          <text x="120" y="120" font-family="IBM Plex Mono" font-size="10" fill="#da1e28">403 — request never reaches the gates</text>
+        </svg>
+      </div>
+      <p class="caption">
+        Gate 00 is conceptually upstream of the three runtime gates and lives in a different service. The runtime
+        gates ask "is this content safe?" — Gate 00 already asked "is this user even allowed to request these
+        scopes?" Both fire on the same request, but at different times, in different processes, against different
+        signals. See <a href="#authorization">Chapter&nbsp;5</a> for the full story.
+      </p>
+    </div>
+
+    <div class="subsection">
+      <h3>The runtime pipeline, as one picture</h3>
 
       <div class="svg-frame" aria-label="Three guardrail gates">
         <svg viewBox="0 0 920 320" role="img">
@@ -3069,7 +3840,7 @@ spec:
 <!-- ==================================================================== -->
 <section id="policy" class="chapter">
   <div class="page">
-    <span class="chapter-num">Chapter 07 · <span class="chip chip-policy">policy</span></span>
+    <span class="chapter-num">Chapter 08 · <span class="chip chip-policy">policy</span></span>
     <h2>Two engines, one contract</h2>
     <p class="lede">
       OPA expresses policy as Rego code you own; watsonx.governance offers managed ML detectors tuned for
@@ -3255,7 +4026,7 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
 <!-- ==================================================================== -->
 <section id="observability" class="chapter">
   <div class="page">
-    <span class="chapter-num">Chapter 08 · <span class="chip chip-observe">observe</span></span>
+    <span class="chapter-num">Chapter 09 · <span class="chip chip-observe">observe</span></span>
     <h2>Every decision is counted, every request is traceable</h2>
     <p class="lede">
       OpenTelemetry metrics give compliance countable facts; structured logs carry the request id through
@@ -3524,11 +4295,11 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
 </section>
 
 <!-- ==================================================================== -->
-<!-- Chapter 9 · Replay — 7-state interactive request scrubber              -->
+<!-- Chapter 10 · Replay — 10-state interactive request scrubber            -->
 <!-- ==================================================================== -->
 <section id="replay" class="chapter">
   <div class="page">
-    <span class="chapter-num">Chapter 09</span>
+    <span class="chapter-num">Chapter 10</span>
     <h2>One request, end to end</h2>
     <p class="lede">
       Step through a single chat request — from the user's browser to the downstream service and back —
@@ -3539,7 +4310,7 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
     <div class="subsection">
       <h3>The replay</h3>
       <p>
-        Seven discrete states carry a single chat request from <span class="node" data-node="subject-token">subject_token</span>
+        Ten discrete states carry a single chat request from <span class="node" data-node="subject-token">subject_token</span>
         all the way to the masked tool response. This is not a continuous timeline — it's the
         <em>ordered sequence</em> of hops that makes the architecture legible.
       </p>
@@ -3583,8 +4354,8 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
               </g>
               <g class="rp-node" id="rp-n-tool" data-key="tool">
                 <rect x="720" y="30" width="160" height="56" rx="0"/>
-                <text x="800" y="56" text-anchor="middle">tool (wx-gov-api)</text>
-                <text x="800" y="72" text-anchor="middle" class="rp-sub">+ Envoy sidecar</text>
+                <text x="800" y="56" text-anchor="middle">tool (user-mcp)</text>
+                <text x="800" y="72" text-anchor="middle" class="rp-sub">+ Envoy sidecar · Postgres</text>
               </g>
               <g class="rp-node" id="rp-n-token-exchange" data-key="token-exchange">
                 <rect x="260" y="230" width="160" height="56" rx="0"/>
@@ -3621,7 +4392,7 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
           <button class="rp-btn primary" id="rp-play" type="button" aria-label="Play replay">▶ Play</button>
           <button class="rp-btn" id="rp-next" type="button" aria-label="Step forward">Step ▶</button>
           <button class="rp-btn" id="rp-reset" type="button" aria-label="Reset replay">↺ Reset</button>
-          <span class="rp-step-indicator" id="rp-step-indicator" aria-live="polite" aria-atomic="true">State 1 / 7</span>
+          <span class="rp-step-indicator" id="rp-step-indicator" aria-live="polite" aria-atomic="true">State 1 / 10</span>
         </div>
 
         <div class="rp-track" role="group" aria-label="Replay states">
@@ -3632,19 +4403,28 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
             <span class="rp-tick-n">02</span><span class="rp-tick-label">attach bearer</span>
           </button>
           <button class="rp-tick" data-step="2" type="button">
-            <span class="rp-tick-n">03</span><span class="rp-tick-label">evaluate prompt</span>
+            <span class="rp-tick-n">03</span><span class="rp-tick-label">tools/list cache</span>
           </button>
           <button class="rp-tick" data-step="3" type="button">
-            <span class="rp-tick-n">04</span><span class="rp-tick-label">OBO exchange</span>
+            <span class="rp-tick-n">04</span><span class="rp-tick-label">evaluate prompt</span>
           </button>
           <button class="rp-tick" data-step="4" type="button">
-            <span class="rp-tick-n">05</span><span class="rp-tick-label">tool call</span>
+            <span class="rp-tick-n">05</span><span class="rp-tick-label">scope authz</span>
           </button>
           <button class="rp-tick" data-step="5" type="button">
-            <span class="rp-tick-n">06</span><span class="rp-tick-label">evaluate tool args</span>
+            <span class="rp-tick-n">06</span><span class="rp-tick-label">OBO mint</span>
           </button>
           <button class="rp-tick" data-step="6" type="button">
-            <span class="rp-tick-n">07</span><span class="rp-tick-label">mask response</span>
+            <span class="rp-tick-n">07</span><span class="rp-tick-label">tool call</span>
+          </button>
+          <button class="rp-tick" data-step="7" type="button">
+            <span class="rp-tick-n">08</span><span class="rp-tick-label">evaluate args</span>
+          </button>
+          <button class="rp-tick" data-step="8" type="button">
+            <span class="rp-tick-n">09</span><span class="rp-tick-label">postgres query</span>
+          </button>
+          <button class="rp-tick" data-step="9" type="button">
+            <span class="rp-tick-n">10</span><span class="rp-tick-label">mask response</span>
           </button>
         </div>
 
@@ -3671,7 +4451,7 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
 <!-- ==================================================================== -->
 <section id="reference" class="chapter">
   <div class="page">
-    <span class="chapter-num">Chapter 10</span>
+    <span class="chapter-num">Chapter 11</span>
     <h2>Reference catalog</h2>
     <p class="lede">
       Every standard, component, token, and signal in the architecture — searchable (press <kbd>/</kbd>) and
@@ -3688,6 +4468,7 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
             <button class="cat-chip" type="button" data-facet="kind" data-value="component">component</button>
             <button class="cat-chip" type="button" data-facet="kind" data-value="token">token</button>
             <button class="cat-chip" type="button" data-facet="kind" data-value="signal">signal</button>
+            <button class="cat-chip" type="button" data-facet="kind" data-value="policy">policy</button>
           </div>
           <div class="cat-facet-row" id="cat-layers" role="group" aria-label="Layer filters">
             <span class="cat-facet-label">Layer</span>
@@ -3705,11 +4486,11 @@ response = httpx.post(<span class="c-fn">masking_url</span>(), json=payload,
 </section>
 
 <!-- ==================================================================== -->
-<!-- Chapter 11 · Getting started                                           -->
+<!-- Chapter 12 · Getting started                                           -->
 <!-- ==================================================================== -->
 <section id="start" class="chapter">
   <div class="page">
-    <span class="chapter-num">Chapter 11</span>
+    <span class="chapter-num">Chapter 12</span>
     <h2>Getting started</h2>
     <p class="lede">
       The repository is a runnable reference implementation. Provision the platform, deploy the workloads in
@@ -3835,8 +4616,48 @@ kubectl apply -f deploy-k8s/service-intentions-opa-gov.yaml</pre>
           </div>
         </li>
 
-        <li class="step" data-layer="observe">
+        <li class="step" data-layer="runtime">
           <span class="step-num">8</span>
+          <div class="step-card">
+            <h4>Deploy <span class="node" data-node="user-mcp">user-mcp</span> + <span class="node" data-node="users-pg">Postgres</span> <span class="step-layer">scope-aware delegation</span></h4>
+            <p>Bring up the user-repository tool the agent calls, plus the Postgres it sits in front of, and
+              configure two Vault DB roles so the per-call lease can be either read-only or read-write
+              depending on the OBO scope. Postgres goes up first so user-mcp has something to connect to;
+              user-mcp registers tools whose <code class="inline">_meta.required_scopes</code> the agent
+              picks up at startup via <span class="node" data-node="mcp-tools-list">tools/list</span>.</p>
+<pre class="step-code"># 1 · Postgres + internal NLB
+kubectl apply -f deploy-k8s/postgresql.yaml
+
+# 2 · Vault DB roles — scope picks the role at call time
+vault write database/roles/users-read \
+  db_name=users \
+  default_ttl="60s"  max_ttl="120s" \
+  creation_statements='CREATE ROLE "{{name}}" LOGIN PASSWORD "{{password}}" \
+    VALID UNTIL "{{expiration}}"; \
+    GRANT SELECT ON users TO "{{name}}";'
+
+vault write database/roles/users-write \
+  db_name=users \
+  default_ttl="60s"  max_ttl="120s" \
+  creation_statements='CREATE ROLE "{{name}}" LOGIN PASSWORD "{{password}}" \
+    VALID UNTIL "{{expiration}}"; \
+    GRANT SELECT, INSERT, UPDATE, DELETE ON users TO "{{name}}";'
+
+# 3 · user-mcp deployment
+kubectl create secret generic user-mcp-env \
+  --from-file=.env=deploy-k8s/user-mcp.env
+kubectl apply -f deploy-k8s/user-mcp.yaml
+
+# 4 · scope→group policy lives with token-exchange — confirm the table
+#     (token-exchange/verify/authorization.py · SCOPE_REQUIREMENTS):
+#       users.read  → {readonly, admin}
+#       users.write → {admin}</pre>
+            <p><a href="../deploy-k8s/postgresql.yaml"><code class="inline">postgresql.yaml</code></a> · <a href="../deploy-k8s/user-mcp.yaml"><code class="inline">user-mcp.yaml</code></a> · <a href="../token-exchange/verify/authorization.py"><code class="inline">token-exchange/verify/authorization.py</code></a></p>
+          </div>
+        </li>
+
+        <li class="step" data-layer="observe">
+          <span class="step-num">9</span>
           <div class="step-card">
             <h4>Run a request end-to-end <span class="step-layer">observe · all three gates</span></h4>
             <p>Sign in to the web-app with IBM Verify, send a chat message, then inspect what the platform
@@ -3952,6 +4773,34 @@ kubectl logs -l app=token-exchange --tail=200 | grep "$REQ_ID"</pre>
             <p>Almost always a stale IAM API key or a wrong governance instance id in
               <code class="inline">wx-gov-api.env</code>. IBM Cloud IAM tokens have a ~60-minute TTL — the
               service refreshes them, but a bad API key looks identical to a timeout from the caller's side.</p>
+          </div>
+        </details>
+
+        <details class="gotcha">
+          <summary><span class="node" data-node="user-mcp">user-mcp</span> returns <code class="inline">403 insufficient_scope</code> on a tool the user should be able to call</summary>
+          <div class="gotcha-body">
+            <p>Two tables must agree, and they live in two different services. The tool's
+              <code class="inline">_meta.required_scopes</code> in
+              <a href="../user-mcp/tools/users.py"><code class="inline">user-mcp/tools/users.py</code></a>
+              must list every scope the OBO needs. Token-exchange's
+              <a href="../token-exchange/verify/authorization.py"><code class="inline">SCOPE_REQUIREMENTS</code></a>
+              must include those same scopes with a group set the user is in. Mismatch in either direction
+              produces a 403 — but in token-exchange it shows as
+              <code class="inline">VerifyAuthorizationError</code> at OBO mint time, while in user-mcp it shows
+              as <code class="inline">insufficient_scope</code> after the fact. Check the broker logs first.</p>
+          </div>
+        </details>
+
+        <details class="gotcha">
+          <summary><span class="node" data-node="users-pg">Postgres</span> is up but user-mcp can't connect in <code class="inline">vault</code> mode</summary>
+          <div class="gotcha-body">
+            <p>In <code class="inline">vault</code> mode user-mcp asks Vault for a fresh DB user keyed off the
+              OBO token. If the Vault DB role doesn't exist, the connection string is wrong, or the OBO scope
+              doesn't match a configured role (<code class="inline">users-read</code> /
+              <code class="inline">users-write</code>), the call fails with
+              <code class="inline">login_with_jwt</code> errors. Switch to
+              <code class="inline">USER_MCP_DB_AUTH_MODE=direct</code> with static creds to isolate whether the
+              problem is database connectivity or Vault role configuration.</p>
           </div>
         </details>
 
@@ -4194,6 +5043,36 @@ const NODES = {
     kind: 'signal', name: 'x-request-id correlation',
     body: 'A per-request UUID set by the first service to see the request and echoed back in the x-request-id response header. Every service logs it as request_id in structured JSON — search Loki/Elastic for one request id to assemble the full identity + policy + tool-call story across five services.',
     meta: { 'Header': 'x-request-id', 'Log field': 'request_id', 'Propagated by': 'Envoy + middleware in each service' }
+  },
+  'user-mcp': {
+    kind: 'component', name: 'user-mcp',
+    body: 'A FastMCP service exposing five user-repository tools (list_all_users, search_users_by_first_name, create_user, update_user_by_email, delete_user_by_email) over MCP streamable-HTTP. Each tool declares its required OAuth scopes in _meta, validates the incoming Bearer JWT, and enforces a scope-subset check before executing the underlying Postgres query. Connects to Postgres via either static creds (development) or Vault dynamic creds keyed by the OBO token (production).',
+    meta: { 'Path': 'user-mcp/', 'Port': '8090', 'Tools': '5', 'Auth': 'Bearer JWT · scope-subset check', 'DB modes': 'direct · vault' }
+  },
+  'users-pg': {
+    kind: 'component', name: 'Postgres · users',
+    body: 'StatefulSet running Postgres 16 with a users table (email PK, first_name, last_name, ssn, phone, credit_card_number, ip_address). Exposed only on an internal AWS NLB so the table is reachable from the cluster but not the public internet. The table contains PII-shaped columns precisely so the masking gate (Chapter 7 · Gate 03) has something to mask.',
+    meta: { 'Path': 'deploy-k8s/postgresql.yaml', 'Service': 'postgres-internal-lb (NLB · port 5432)', 'Image': 'postgres:16', 'Storage': 'PVC · 5Gi', 'Schema': 'users (7 columns, email PK)' }
+  },
+  'mcp-tools-list': {
+    kind: 'signal', name: 'tools/list discovery',
+    body: 'Startup-only MCP call from ai-agent to user-mcp. Returns each tool\'s schema plus its _meta.required_scopes. ai-agent caches the resulting tool→scopes map for the life of the pod and uses it to populate the scope field of each subsequent OBO request. The LLM never sees this map — it picks tools by name; the wrapper looks up scopes deterministically.',
+    meta: { 'Method': 'tools/list (MCP)', 'Cached on': 'ai-agent (in-process)', 'Updated': 'pod startup only', 'Scope source': '_meta.required_scopes per tool' }
+  },
+  'scope-requirements': {
+    kind: 'policy', name: 'SCOPE_REQUIREMENTS (token-exchange)',
+    body: 'A six-line Python dict in token-exchange/verify/authorization.py mapping each scope to the set of user groups entitled to request it. Read on every /v1/identity/obo-token call, enforced inline before any IBM Verify round-trip. Mismatch raises VerifyAuthorizationError → HTTP 403; no OBO is minted, so the downstream call never happens.',
+    meta: { 'Path': 'token-exchange/verify/authorization.py', 'Entries': 'users.read → {readonly, admin} · users.write → {admin}', 'On deny': 'HTTP 403 · VerifyAuthorizationError', 'Layer': 'authorization' }
+  },
+  'vault-db-roles': {
+    kind: 'component', name: 'Vault DB roles (users-read · users-write)',
+    body: 'Vault\'s database secrets engine is configured with two roles. users-read mints a Postgres user with SELECT on the users table; users-write mints one with INSERT/UPDATE/DELETE. user-mcp picks the role at request time based on the OBO token\'s scope claim. Each lease is short-lived (default 60s) and rotated automatically on the next call.',
+    meta: { 'Backend': 'Vault database secrets engine', 'Roles': 'users-read · users-write', 'Selector': 'scope claim from OBO', 'TTL': '60s default · rotated per call' }
+  },
+  'obo-scope-cache': {
+    kind: 'signal', name: 'OBO scope-keyed cache',
+    body: 'token-exchange caches OBO tokens with a key of sha256(subject_token + role + normalized_scope_set). A request for users.read does not return a token cached for users.write — and vice versa. This prevents accidental privilege creep when the same user invokes tools that require different scopes within the same session.',
+    meta: { 'Cache key': 'sha256(subject + role + scope_set)', 'Owner': 'token-exchange (process-local)', 'Invalidation': 'TTL = obo.exp − 30s', 'Effect': 'per-scope token isolation' }
   }
 };
 
@@ -4548,7 +5427,7 @@ threatBtn.addEventListener('click', () => {
 })();
 
 /* ---------------------------------------------------------------------- */
-/* Chapter 9 · Replay scrubber                                            */
+/* Chapter 10 · Replay scrubber                                           */
 /* ---------------------------------------------------------------------- */
 (() => {
   const root = document.getElementById('replay-widget');
@@ -4579,6 +5458,19 @@ threatBtn.addEventListener('click', () => {
       ],
     },
     {
+      title: 'tools/list cache hit (happened earlier, at startup)',
+      story: 'Long before this request arrived, ai-agent called <span class="node" data-node="user-mcp">user-mcp</span> <code>tools/list</code> and read each tool\'s <code>_meta.required_scopes</code>. That map is cached for the life of the pod. When the LLM picks a tool below, the wrapper reads the scope set from this cache — never inferred from the prompt. See <a href="#authorization">Chapter 5</a>.',
+      callout: 'Scope determination is deterministic. The LLM picks the tool; the registry picks the scopes.',
+      edges: [],
+      activeNodes: ['ai-agent', 'tool'],
+      signals: [
+        { k: 'GET', v: 'tools/list  (anon · startup-only)' },
+        { k: 'cache', v: 'tool→scopes  (5 entries)' },
+        { k: 'list_all_users', v: '["users.read"]' },
+        { k: 'delete_user_by_email', v: '["users.write"]' },
+      ],
+    },
+    {
       title: 'Inbound sidecar evaluates the prompt',
       story: 'The Envoy Lua filter on ai-agent’s inbound listener POSTs the request body to <span class="node" data-node="opa-gov-api">opa-gov-api</span> <code>/evaluate</code>. OPA runs <code>is_injection</code> and <code>is_unsafe</code> over the base64-decoded body.',
       callout: 'Fail-open by default — if opa-gov-api is unreachable, the filter allows. Flip <code>OPA_FAIL_MODE=closed</code> to invert.',
@@ -4591,16 +5483,30 @@ threatBtn.addEventListener('click', () => {
       ],
     },
     {
-      title: 'Agent requests an OBO token',
-      story: 'ai-agent reads its Vault-injected <span class="node" data-node="actor-token">actor_token</span> and calls <span class="node" data-node="token-exchange">token-exchange</span>. The broker runs RFC 8693 against IBM Verify and returns a delegated <span class="node" data-node="obo-token">obo_token</span> whose <code>act.sub</code> is the workload.',
-      callout: 'Both identities are in one JWT. Downstream only has to parse one token to know both the user and the agent that acted on her behalf.',
+      title: 'Scope→group authz check (before any OBO is minted)',
+      story: 'ai-agent\'s wrapper attached the requested scopes (e.g. <code>users.read</code> for <code>list_all_users</code>) to the <code>POST /v1/identity/obo-token</code> body. <span class="node" data-node="token-exchange">token-exchange</span> extracts the <code>groups</code> claim from the subject_token and intersects it with <span class="node" data-node="scope-requirements">SCOPE_REQUIREMENTS</span>. If any scope isn\'t entitled, it raises <code>VerifyAuthorizationError</code> and returns HTTP 403 — no OBO is minted, no IBM Verify call is made.',
+      callout: 'Authorization is local to token-exchange — no callback to ai-agent. A six-line policy table answers the question.',
+      edges: ['rp-e4'],
+      activeNodes: ['ai-agent', 'token-exchange'],
+      signals: [
+        { k: 'requested_scopes', v: '["users.read"]' },
+        { k: 'subject.groups',  v: 'admin' },
+        { k: 'SCOPE_REQUIREMENTS', v: 'users.read → {readonly, admin}' },
+        { k: 'decision', v: 'allow · groups ∩ allow_list = {admin}', emit: true },
+      ],
+    },
+    {
+      title: 'Agent receives the OBO token',
+      story: 'ai-agent reads its Vault-injected <span class="node" data-node="actor-token">actor_token</span>; <span class="node" data-node="token-exchange">token-exchange</span> runs the RFC 8693 grant against IBM Verify and returns a delegated <span class="node" data-node="obo-token">obo_token</span> whose <code>act.sub</code> is the workload and whose <code>scope</code> is exactly what the wrapper requested.',
+      callout: 'Both identities in one JWT. Cache key includes scope, so a different tool with different scopes does not reuse this token.',
       edges: ['rp-e4'],
       activeNodes: ['ai-agent', 'token-exchange'],
       signals: [
         { k: 'grant_type', v: 'urn:ietf:params:oauth:grant-type:token-exchange' },
         { k: 'subject_token', v: 'eyJ…user' },
         { k: 'actor_token',   v: 'eyJ…spiffe/ai-agent' },
-        { k: 'cache', v: 'MISS · sha256(user+role) · TTL 3570s', emit: true },
+        { k: 'scope', v: 'users.read' },
+        { k: 'cache', v: 'MISS · sha256(user+role+scope) · TTL 3570s', emit: true },
       ],
     },
     {
@@ -4625,6 +5531,19 @@ threatBtn.addEventListener('click', () => {
         { k: 'POST', v: '/evaluate  (tool args)' },
         { k: 'result', v: '{is_injection:false, is_unsafe:false}' },
         { k: 'log', v: '{event:"policy.evaluate", hook:"outbound"}', emit: true },
+      ],
+    },
+    {
+      title: 'user-mcp validates scope, leases creds, queries Postgres',
+      story: '<span class="node" data-node="user-mcp">user-mcp</span> validates the bearer token, confirms <code>users.read ⊆ granted_scopes</code>, then calls <span class="node" data-node="vault-db-roles">Vault</span> <code>login_with_jwt(obo_token)</code> to lease a fresh <code>users-read</code> Postgres role for this single call. SQL runs against the <span class="node" data-node="users-pg">users</span> table; the lease expires in 60 seconds.',
+      callout: 'Per-call leases mean a compromised agent cannot escalate beyond the scope it currently holds. The DB enforces the boundary even if user-mcp is buggy.',
+      edges: ['rp-e5'],
+      activeNodes: ['ai-agent', 'tool'],
+      signals: [
+        { k: 'scope_check', v: '["users.read"] ⊆ obo.scope ✓' },
+        { k: 'vault.login_with_jwt', v: 'role: users-read · 60s lease' },
+        { k: 'SQL', v: 'SELECT * FROM users LIMIT 200' },
+        { k: 'rows', v: '6 returned · contain SSN/CC/phone', emit: true },
       ],
     },
     {
@@ -4858,7 +5777,7 @@ threatBtn.addEventListener('click', () => {
 })();
 
 /* ---------------------------------------------------------------------- */
-/* Chapter 10 · Faceted catalog                                           */
+/* Chapter 11 · Faceted catalog                                           */
 /* ---------------------------------------------------------------------- */
 (() => {
   const root = document.getElementById('catalog');
@@ -5515,6 +6434,266 @@ threatBtn.addEventListener('click', () => {
 
   // Initial paint
   selectStat('opa-violations');
+})();
+
+/* =========================================================================
+ * Chapter 5 · Scope-aware delegation — interactive widgets
+ * ========================================================================= */
+
+/* 5.1 — Tool registry inspector ----------------------------------------- */
+(function () {
+  const root = document.getElementById('tool-registry');
+  if (!root) return;
+  const cards = root.querySelectorAll('.tool-card');
+  const rows  = root.querySelectorAll('.tool-rows-table .tr-row');
+  const head  = document.getElementById('tr-tool-name');
+  const foot  = document.getElementById('tr-foot');
+
+  // Each tool: which rows it touches and what the table footer should say
+  const TOOL_BEHAVIOR = {
+    list_all_users: {
+      verb: 'SELECT',
+      caption: 'scope-bound query · 6 rows · all columns visible',
+      hits: () => Array.from(rows),
+    },
+    search_users_by_first_name: {
+      verb: 'SELECT',
+      caption: 'WHERE lower(first_name) = lower(‘alex’) · 2 rows match',
+      hits: () => Array.from(rows).filter(r => r.dataset.first === 'alex'),
+    },
+    create_user: {
+      verb: 'INSERT',
+      caption: 'one new row · users.write required · scope ⊆ granted enforced',
+      hits: () => [],
+      synthetic: { email: 'taylor.new@acme.example', first: 'taylor', last: 'new', ssn: '•••-••-9999' },
+    },
+    update_user_by_email: {
+      verb: 'UPDATE',
+      caption: 'matched row · phone/last_name mutated · users.write required',
+      hits: () => Array.from(rows).slice(2, 3),
+    },
+    delete_user_by_email: {
+      verb: 'DELETE',
+      caption: 'matched row gone · users.write required · 403 if user lacks admin',
+      hits: () => Array.from(rows).slice(0, 1),
+    },
+  };
+
+  // Inject a synthetic row container we toggle in for create_user
+  const tbody = root.querySelector('.tool-rows-table tbody');
+  const synthRow = document.createElement('tr');
+  synthRow.className = 'tr-row tr-new tr-synthetic';
+  synthRow.style.display = 'none';
+  synthRow.innerHTML = `<td>taylor.new@acme.example</td><td>taylor</td><td>new</td><td>•••-••-9999</td>`;
+  tbody.appendChild(synthRow);
+
+  function paint(tool) {
+    const cfg = TOOL_BEHAVIOR[tool];
+    if (!cfg) return;
+    head.textContent = tool;
+    const hits = new Set(cfg.hits());
+
+    rows.forEach(r => {
+      r.classList.remove('tr-hit', 'tr-dim', 'tr-deleted');
+      if (tool === 'delete_user_by_email' && hits.has(r)) {
+        r.classList.add('tr-deleted', 'tr-hit');
+      } else if (hits.has(r)) {
+        r.classList.add('tr-hit');
+      } else if (cfg.hits().length > 0) {
+        r.classList.add('tr-dim');
+      }
+    });
+
+    synthRow.style.display = (tool === 'create_user') ? '' : 'none';
+
+    foot.innerHTML = `
+      <span class="trf-pill">${cfg.verb}</span>
+      <span>${cfg.caption}</span>
+    `;
+
+    cards.forEach(c => c.setAttribute('aria-pressed', String(c.dataset.tool === tool)));
+  }
+
+  root.addEventListener('click', (e) => {
+    const card = e.target.closest('.tool-card');
+    if (!card) return;
+    paint(card.dataset.tool);
+  });
+  root.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const card = e.target.closest('.tool-card');
+    if (!card) return;
+    e.preventDefault();
+    paint(card.dataset.tool);
+  });
+
+  paint('list_all_users');
+})();
+
+/* 5.2 — Vault scope→role flipper ---------------------------------------- */
+(function () {
+  const root = document.getElementById('db-flipper');
+  if (!root) return;
+  const scopeBtns = root.querySelectorAll('.dbf-seg [data-scope]');
+  const roleLabel = document.getElementById('dbf-role-label');
+  const status    = document.getElementById('dbf-status');
+
+  let scope = 'users.read';
+
+  function apply() {
+    const role = scope === 'users.read' ? 'users-read' : 'users-write';
+    const lease = scope === 'users.read' ? 'read-only · short-lived lease' : 'read+write · short-lived lease';
+    roleLabel.textContent = `role: ${role}`;
+    status.innerHTML = `Scope: <strong>${scope}</strong> · Vault role: <strong>${role}</strong> (${lease})`;
+    scopeBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.scope === scope)));
+  }
+
+  scopeBtns.forEach(b => b.addEventListener('click', () => { scope = b.dataset.scope; apply(); }));
+  apply();
+})();
+
+/* 5.3 — Intent translator stage ----------------------------------------- */
+(function () {
+  const root = document.getElementById('intent-translator');
+  if (!root) return;
+  const presets   = root.querySelectorAll('.it-preset');
+  const stepBtn   = document.getElementById('it-step-btn');
+  const resetBtn  = document.getElementById('it-reset-btn');
+  const indicator = document.getElementById('it-step-indicator');
+  const rows      = root.querySelectorAll('.it-row');
+
+  const TOOL_INTENT = {
+    list_all_users: {
+      args: {},
+      scope: 'users.read',
+    },
+    search_users_by_first_name: {
+      args: { first_name: 'alex' },
+      scope: 'users.read',
+    },
+    delete_user_by_email: {
+      args: { email: 'sam.cole@acme.example' },
+      scope: 'users.write',
+    },
+  };
+
+  let tool = 'list_all_users';
+  let step = 0;
+
+  function row1() {
+    const t = TOOL_INTENT[tool];
+    return `{
+  "tool": "${tool}",
+  "args": ${JSON.stringify(t.args, null, 2).replace(/\n/g, '\n  ')}
+}`;
+  }
+  function row2() {
+    const t = TOOL_INTENT[tool];
+    const lines = [
+      `TOOL_SCOPE_REQUIREMENTS = {`,
+      `  "list_all_users":             ["users.read"],`,
+      `  "search_users_by_first_name": ["users.read"],`,
+      `  "create_user":                ["users.write"],`,
+      `  "update_user_by_email":       ["users.write"],`,
+      `  "delete_user_by_email":       ["users.write"],`,
+      `}`,
+      ``,
+      `# wrapper looks up: ${tool}`,
+      `# → required_scopes = ["${t.scope}"]`,
+    ];
+    return lines.map(l => l.replace(t.scope, `<span class="it-hl">${t.scope}</span>`)).join('\n');
+  }
+  function row3() {
+    const t = TOOL_INTENT[tool];
+    return `POST /v1/identity/obo-token
+{
+  "subject_token": "&lt;user JWT&gt;",
+  "actor_token":   "&lt;agent JWT&gt;",
+  "scope":         "<span class="it-hl">${t.scope}</span>"
+}`;
+  }
+
+  function paint() {
+    document.getElementById('it-row-1').innerHTML = row1();
+    document.getElementById('it-row-2').innerHTML = row2();
+    document.getElementById('it-row-3').innerHTML = row3();
+
+    rows.forEach((r, i) => {
+      const n = i + 1;
+      r.classList.remove('it-active', 'it-done');
+      if (n < step) r.classList.add('it-done');
+      else if (n === step) r.classList.add('it-active');
+    });
+
+    const stages = ['idle', 'LLM intent captured', 'scope looked up', 'OBO request built'];
+    indicator.textContent = `Step ${step} / 3 · ${stages[step]}`;
+    stepBtn.textContent = step >= 3 ? '↻ Replay' : 'Step ▶';
+    presets.forEach(p => p.setAttribute('aria-pressed', String(p.dataset.tool === tool)));
+  }
+
+  stepBtn.addEventListener('click', () => {
+    step = (step >= 3) ? 1 : step + 1;
+    paint();
+  });
+  resetBtn.addEventListener('click', () => { step = 0; paint(); });
+  presets.forEach(b => b.addEventListener('click', () => {
+    tool = b.dataset.tool; step = 0; paint();
+  }));
+  paint();
+})();
+
+/* 5.4 — Authz sandbox --------------------------------------------------- */
+(function () {
+  const root = document.getElementById('authz-sandbox');
+  if (!root) return;
+  const groupsSel = document.getElementById('azs-groups');
+  const checks    = root.querySelectorAll('.azs-checks input[type="checkbox"]');
+  const decisionEl = document.getElementById('azs-decision');
+  const statusEl   = document.getElementById('azs-status');
+  const detailEl   = document.getElementById('azs-detail');
+  const flowEl     = document.getElementById('azs-flow');
+
+  const SCOPE_REQUIREMENTS = {
+    'users.read':  ['readonly', 'admin'],
+    'users.write': ['admin'],
+  };
+
+  function evaluate() {
+    const groups = (groupsSel.value || '').split(',').map(s => s.trim()).filter(Boolean);
+    const requested = Array.from(checks).filter(c => c.checked).map(c => c.value);
+
+    decisionEl.classList.remove('azs-allow', 'azs-deny');
+
+    if (requested.length === 0) {
+      statusEl.textContent = '— pending —';
+      detailEl.textContent = 'Select at least one scope to evaluate.';
+      flowEl.textContent = '';
+      return;
+    }
+
+    let denied = null;
+    for (const sc of requested) {
+      const allowList = SCOPE_REQUIREMENTS[sc] || [];
+      const intersect = groups.filter(g => allowList.includes(g));
+      if (intersect.length === 0) { denied = { scope: sc, allowList }; break; }
+    }
+
+    if (!denied) {
+      decisionEl.classList.add('azs-allow');
+      statusEl.textContent = '200 · OBO minted';
+      detailEl.textContent = `groups=[${groups.join(', ') || '∅'}] satisfy every requested scope. token-exchange forwards the RFC 8693 grant to IBM Verify, returns the access_token, and caches it under sha256(subject + role + scope).`;
+      flowEl.innerHTML = `flow: groups ∩ allow_list per scope → all non-empty → mint OBO → cache → return`;
+    } else {
+      decisionEl.classList.add('azs-deny');
+      statusEl.textContent = '403 · VerifyAuthorizationError';
+      detailEl.textContent = `groups=[${groups.join(', ') || '∅'}] do NOT satisfy scope=${denied.scope} (requires one of: ${denied.allowList.join(', ')}). No OBO is minted; ai-agent receives the 403 and the tool call is short-circuited.`;
+      flowEl.innerHTML = `flow: groups ∩ allow_list[${denied.scope}] = ∅ → raise VerifyAuthorizationError → 403 → no IBM Verify call`;
+    }
+  }
+
+  groupsSel.addEventListener('change', evaluate);
+  checks.forEach(c => c.addEventListener('change', evaluate));
+  evaluate();
 })();
 </script>
 </body>

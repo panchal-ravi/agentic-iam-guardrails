@@ -7,6 +7,7 @@
 @use 'styles/chat';
 @use 'styles/inspector';
 @use 'styles/composer';
+@use 'styles/flow-strip';
 
 :root {
   @include theme.theme(themes.$white);

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { Header } from '@/components/header';
+import { FlowStrip } from '@/components/chat/flow-strip';
 import { ChatWorkspace } from '@/components/chat/chat-workspace';
 import { getSession } from '@/lib/auth/session';
 
@@ -14,6 +15,7 @@ export default async function LandingPage() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Header username={username} />
+      <FlowStrip />
       <ChatWorkspace username={username} />
     </div>
   );
